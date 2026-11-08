@@ -147,6 +147,14 @@ builder.Services.AddAuthorization(options =>
             .RequireAuthenticatedUser()
             .RequireRole(nameof(PapelUsuario.Admin)));
 
+    options.AddPolicy(AuthenticationSetup.PolicyAtribuicao, policy =>
+        policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .RequireRole(
+                nameof(PapelUsuario.Agente),
+                nameof(PapelUsuario.Supervisor),
+                nameof(PapelUsuario.Admin)));
+
     options.AddPolicy(AuthenticationSetup.PolicyPortalOuEquipe, policy =>
         policy.AddAuthenticationSchemes(
                 AuthenticationSetup.ApiKeyScheme,

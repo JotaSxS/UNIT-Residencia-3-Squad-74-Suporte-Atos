@@ -114,7 +114,7 @@ public class ChamadosController : ControllerBase
     }
 
     [HttpPatch("{codigoPublico}/atribuir")]
-    [Authorize(Policy = AuthenticationSetup.PolicyEquipe)]
+    [Authorize(Policy = AuthenticationSetup.PolicyAtribuicao)]
     [ProducesResponseType(typeof(ChamadoDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

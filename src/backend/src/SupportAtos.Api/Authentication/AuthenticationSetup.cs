@@ -22,6 +22,7 @@ public static class AuthenticationSetup
     public const string PolicyAutomacao = "Automacao";
     public const string PolicyEquipe = "Equipe";
     public const string PolicyEquipeAdmin = "EquipeAdmin";
+    public const string PolicyAtribuicao = "Atribuicao";
     public const string PolicyJwt = "Jwt";
     public const string PolicyPortalOuEquipe = "PortalOuEquipe";
 
