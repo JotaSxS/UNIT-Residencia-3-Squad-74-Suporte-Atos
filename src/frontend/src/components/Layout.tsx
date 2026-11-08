@@ -4,6 +4,7 @@ import {
   AppBar, Avatar, Badge, Box, Breadcrumbs, Button, Divider, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, Popover, Stack, Toolbar, Typography,
 } from '@mui/material';
+import { NavLink } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { SvgIconComponent } from '@mui/icons-material';
@@ -14,31 +15,29 @@ import {
 import { BrandMark } from './ui';
 import LanguageSwitcher from './LanguageSwitcher';
 import { MONO } from '../theme';
-import type { AppNotification, Session, ThemeMode, ViewId } from '../types';
+import type { AppNotification, Session, ThemeMode } from '../types';
 
 export const DRAWER_WIDTH = 256;
 
 interface SidebarContentProps {
   session: Session;
-  view: ViewId;
-  setView: (view: ViewId) => void;
   onLogout: () => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   onClose?: () => void;
 }
 
-interface NavItem { id: ViewId; label: string; icon: SvgIconComponent }
+interface NavItem { path: string; label: string; icon: SvgIconComponent }
 
-function SidebarContent({ session, view, setView, onLogout, themeMode, setThemeMode, onClose }: SidebarContentProps) {
+function SidebarContent({ session, onLogout, themeMode, setThemeMode, onClose }: SidebarContentProps) {
   const { atos } = useTheme();
   const { t } = useTranslation();
   // Equipe e administrador veem a fila; o administrador também tem o cadastro de usuários.
   const isClient = session.role === 'cliente';
   const nav: NavItem[] = [
-    { id: 'lista', label: isClient ? t('nav.myTickets') : t('nav.queue'), icon: isClient ? ConfirmationNumberOutlined : HeadsetMicOutlined },
-    { id: 'relatorios', label: t('nav.reports'), icon: BarChartOutlined },
-    ...(session.role === 'admin' ? [{ id: 'usuarios' as const, label: t('nav.users'), icon: ManageAccountsOutlined }] : []),
+    { path: '/chamados', label: isClient ? t('nav.myTickets') : t('nav.queue'), icon: isClient ? ConfirmationNumberOutlined : HeadsetMicOutlined },
+    { path: '/relatorios', label: t('nav.reports'), icon: BarChartOutlined },
+    ...(session.role === 'admin' ? [{ path: '/usuarios' as const, label: t('nav.users'), icon: ManageAccountsOutlined }] : []),
   ];
   const soft = { color: atos.menuText, opacity: 0.7 };
   return (
@@ -59,17 +58,18 @@ function SidebarContent({ session, view, setView, onLogout, themeMode, setThemeM
             const Icon = item.icon;
             return (
               <ListItemButton
-                key={item.id}
-                selected={view === item.id}
-                onClick={() => setView(item.id)}
+                key={item.path}
+                component={NavLink}
+                to={item.path}
+                onClick={onClose}
                 sx={{
                   borderRadius: 2, mb: 0.5, color: atos.menuText, opacity: 0.78,
-                  '&.Mui-selected, &.Mui-selected:hover': { bgcolor: 'rgba(255,255,255,0.14)', opacity: 1 },
+                  '&.active, &.active:hover': { bgcolor: 'rgba(255,255,255,0.14)', opacity: 1 },
                   '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', opacity: 1 },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><Icon fontSize="small" /></ListItemIcon>
-                <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 14, fontWeight: view === item.id ? 600 : 500 }} />
+                <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 14, fontWeight: 500 }} />
               </ListItemButton>
             );
           })}
