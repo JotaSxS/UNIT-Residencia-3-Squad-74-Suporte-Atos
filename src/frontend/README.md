@@ -23,7 +23,7 @@ coloque em `VITE_API_TOKEN` no `.env.local` (copie de `.env.example`). Em produ�
 
 ## Padrão de interface: MUI + tokens
 
-O front segue o padrão da Atos Bank: **Material UI (MUI v5) com tokens do design system**.
+O front segue o padrão da Atos Capital: **Material UI (MUI v5) com tokens do design system**.
 Antes ele usava Tailwind; foi migrado para alinhar ao padrão.
 
 - `src/theme.js` é a **fonte única dos tokens** (marca, superfícies, texto, estados, menu,

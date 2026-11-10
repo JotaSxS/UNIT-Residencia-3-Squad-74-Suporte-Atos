@@ -28,14 +28,19 @@ const PICKER_TEXT = {
   es: esES.components.MuiLocalizationProvider.defaultProps.localeText,
 };
 
-function ViewSkeleton() {
-  return (
-    <Box sx={{ maxWidth: 1152 }} aria-hidden>
-      <Skeleton width={220} height={34} />
-      <Skeleton width={320} height={22} sx={{ mb: 4 }} />
-      <Stack spacing={1.5}>{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} variant="rounded" height={48} />)}</Stack>
-    </Box>
-  );
+function TicketPage({ tickets, session, onUpdate }: {
+  tickets: Ticket[];
+  session: Session;
+  onUpdate: (ticket: Ticket) => void;
+}) {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const ticket = tickets.find((item) => item.id === id);
+  if (!ticket || (session.role === 'cliente' && ticket.empresa !== session.empresa)) {
+    return <Navigate to="/chamados" replace />;
+  }
+  return <TicketDetail key={ticket.id} ticket={ticket} role={session.role} user={session}
+    onBack={() => navigate('/chamados')} onUpdate={onUpdate} />;
 }
 
 interface TicketDetailRouteProps {
@@ -61,7 +66,16 @@ function RoleRoute({ allow, role, children }: { allow: Role[]; role: Role; child
 export default function SupportPortal() {
   const { t: tr, i18n: i18nInstance } = useTranslation();
   const lang: Lang = (LANGS as readonly string[]).includes(i18nInstance.language) ? (i18nInstance.language as Lang) : 'pt';
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [themeMode, changeTheme] = useState<ThemeMode>(() => {
+    try { return localStorage.getItem('atos.theme') === 'dark' ? 'dark' : 'light'; }
+    catch { return 'light'; }
+  });
+  const setThemeMode = (mode: ThemeMode) => {
+    changeTheme(mode);
+    try { localStorage.setItem('atos.theme', mode); } catch { /* Storage may be disabled. */ }
+  };
   const theme = useMemo(() => buildTheme(themeMode), [themeMode]);
 
   const [session, setSession] = useState<Session | null>(null);
@@ -106,7 +120,10 @@ export default function SupportPortal() {
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={DAYJS_LOCALE[lang]} localeText={PICKER_TEXT[lang]}>
       <CssBaseline />
       {!session ? (
-        <LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />
+        <Routes>
+          <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />} />
+          <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
+        </Routes>
       ) : (
         <Box sx={{ display: 'flex', height: '100vh', '@supports (height: 100dvh)': { height: '100dvh' }, overflow: 'hidden', bgcolor: 'background.default' }}>
           <Box component="a" href="#main-content"
@@ -138,7 +155,7 @@ export default function SupportPortal() {
               )}
             </Box>
           </Box>
-          {showNewTicket && role === 'cliente' && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
+          {showNewTicket && session.role === 'cliente' && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
         </Box>
       )}
       {/* Notificações: sonner (toast.success / toast.error / toast.warning). */}
