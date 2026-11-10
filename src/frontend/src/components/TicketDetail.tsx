@@ -58,7 +58,7 @@ function MessageForm({ label, placeholder, submitLabel, onSubmit, startIcon, but
   return (
     <Stack component="form" spacing={1.25} onSubmit={handleSubmit(submit)} noValidate>
       <FormTextField<MessageFormValues> name="text" control={control} required multiline minRows={3} fullWidth label={label} placeholder={placeholder} />
-      <Button type="submit" variant="contained" color={buttonColor} startIcon={startIcon} sx={{ alignSelf: 'flex-start', ...buttonSx }}>{submitLabel}</Button>
+      <Button type="submit" variant="contained" color={buttonColor} startIcon={startIcon} sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' }, ...buttonSx }}>{submitLabel}</Button>
     </Stack>
   );
 }
@@ -108,7 +108,7 @@ export default function TicketDetail({ ticket, role, user, onBack, onUpdate }: T
     <Box sx={{ maxWidth: 1152 }}>
       <Button onClick={onBack} startIcon={<ChevronLeft />} sx={{ mb: 2, color: 'text.secondary', minHeight: 32, px: 0.5 }}>{t('common.back')}</Button>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={0.5}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="flex-start" spacing={2} mb={0.5}>
         <Box>
           <Typography sx={{ fontFamily: MONO, fontSize: 12, color: 'text.disabled', mb: 0.5 }}>{ticket.id}</Typography>
           <Typography variant="h1">{ticket.categoria} · {ticket.produto}</Typography>
@@ -123,22 +123,22 @@ export default function TicketDetail({ ticket, role, user, onBack, onUpdate }: T
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 4 }}>
         <Box>
           {isTeam && (
-            <Tabs value={tab} onChange={(_, v: string) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-              <Tab value="conversa" label={t('detail.tabConversation')} />
-              <Tab value="notas" label={t('detail.tabNotes')} icon={<LockOutlined sx={{ fontSize: 14 }} />} iconPosition="start" />
+            <Tabs value={tab} onChange={(_, v: string) => setTab(v)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+              <Tab value="conversa" id="tab-conversa" aria-controls="panel-conversa" label={t('detail.tabConversation')} />
+              <Tab value="notas" id="tab-notas" aria-controls="panel-notas" label={t('detail.tabNotes')} icon={<LockOutlined sx={{ fontSize: 14 }} />} iconPosition="start" />
             </Tabs>
           )}
 
           {tab === 'conversa' ? (
-            <>
+            <Box role={isTeam ? 'tabpanel' : undefined} id="panel-conversa" aria-labelledby={isTeam ? 'tab-conversa' : undefined}>
               <Stack spacing={2} mb={2}>
                 {ticket.mensagens.map((m, i) => <Message key={i} {...m} tint={m.tipo === 'agente'} />)}
               </Stack>
               <MessageForm label={t('detail.message')} placeholder={isTeam ? t('detail.replyTeamPlaceholder') : t('detail.replyClientPlaceholder')}
                 submitLabel={t('detail.send')} startIcon={<Send fontSize="small" />} onSubmit={send} />
-            </>
+            </Box>
           ) : (
-            <>
+            <Box role="tabpanel" id="panel-notas" aria-labelledby="tab-notas">
               <Stack spacing={1.5} mb={2}>
                 {ticket.notas.length === 0 ? (
                   <Paper variant="outlined" sx={{ py: 4, textAlign: 'center' }}>
@@ -150,7 +150,7 @@ export default function TicketDetail({ ticket, role, user, onBack, onUpdate }: T
               <MessageForm label={t('detail.note')} placeholder={t('detail.notePlaceholder')} submitLabel={t('detail.saveNote')}
                 onSubmit={addNote} buttonColor="inherit"
                 buttonSx={{ bgcolor: 'text.primary', color: 'background.paper', '&:hover': { bgcolor: 'text.secondary' } }} />
-            </>
+            </Box>
           )}
         </Box>
 

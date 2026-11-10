@@ -23,6 +23,7 @@ const es: Locale = {
     forbidden: 'No tiene permiso para realizar esta acción.',
     generic: 'No fue posible completar la solicitud. Intente de nuevo.',
   },
+  a11y: { skipToContent: 'Saltar al contenido', mainMenu: 'Menú principal', notificationsUnread: 'Notificaciones, {{n}} sin leer', unread: 'sin leer' },
   brand: { alt: 'Atos Capital' },
   sla: {
     title: 'Plazo de SLA', done: 'concluido', met: 'cumplido', remaining: '{{hours}}h restantes',
@@ -49,6 +50,7 @@ const es: Locale = {
       keepConnected: 'Mantener la sesión en este dispositivo', forgotPassword: 'Olvidé mi contraseña',
       submit: 'Ingresar al portal', submitting: 'Ingresando',
     },
+    devTokenFailed: 'No fue posible obtener el token de desarrollo de la API. Las pantallas que usan la API no cargarán.',
     secure: 'Entorno seguro. Acceso restringido a usuarios autorizados.',
     themeToggleAria: 'Alternar tema claro y oscuro', themeDark: 'Oscuro', themeLight: 'Claro',
     showcase: {
@@ -88,6 +90,8 @@ const es: Locale = {
     notFoundTitle: 'Ningún ticket encontrado',
     emptyClientText: 'Cuando necesite ayuda, abra un ticket y sígalo por aquí.',
     emptyTeamText: 'Buen trabajo, todo al día.', notFoundText: 'Intente buscar por otro número, empresa o categoría.',
+    removeFilter: 'Quitar filtro {{name}}', resultsCount: '{{n}} tickets encontrados', openTicket: 'Abrir ticket {{id}}',
+    pagination: { first: 'Primera página', previous: 'Página anterior', next: 'Página siguiente', last: 'Última página' },
     clearFilters: 'Limpiar filtros',
     table: {
       label: 'Tickets', ticket: 'Ticket', categoryProduct: 'Categoría y producto', company: 'Empresa',
@@ -134,6 +138,7 @@ const es: Locale = {
     totalPeriod: 'Tickets en el período', currentFilter: 'en el filtro actual',
     resolved: 'Resueltos o cerrados', done: 'concluidos', nearSla: 'Cerca del SLA', needAttention: 'requieren atención',
     byProduct: 'Tickets por producto', byCategory: 'Tickets recurrentes por categoría',
+    chartAlt: 'Gráfico de barras: tickets por producto. {{data}}',
     atRiskTitle: 'Tickets cerca del SLA', noRisk: 'Ningún ticket en riesgo por el momento.',
   },
   users: {
