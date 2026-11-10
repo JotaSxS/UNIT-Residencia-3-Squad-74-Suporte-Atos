@@ -94,6 +94,14 @@ export function getToken(): string {
   return (import.meta.env.VITE_API_TOKEN as string | undefined) || '';
 }
 
+export function setToken(token: string): void {
+  try { window.sessionStorage.setItem('atos_token', token); } catch { /* sessionStorage indisponível */ }
+}
+
+export function clearToken(): void {
+  try { window.sessionStorage.removeItem('atos_token'); } catch { /* sessionStorage indisponível */ }
+}
+
 async function request<T>(path: string, { method = 'GET', body }: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = getToken();
   if (!token) {
@@ -126,6 +134,42 @@ async function request<T>(path: string, { method = 'GET', body }: { method?: str
     403: i18n.t('api.forbidden'),
   } as Record<number, string>)[response.status] || i18n.t('api.generic');
   throw new ApiError(problem?.detail || errors[0] || fallback, response.status, errors);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Login de desenvolvimento (só existe com a API em Development)           */
+/* ---------------------------------------------------------------------- */
+
+export interface DevLoginInput {
+  email: string;
+  nome: string;
+  papel: PapelApi;
+  grupoId?: string;
+  grupoNome?: string;
+}
+
+/**
+ * Pede à API (POST /api/dev/token) um JWT de desenvolvimento e o guarda para as próximas chamadas.
+ * Em produção esse endpoint não existe: o token vem do SSO e deve ser gravado em sessionStorage ("atos_token").
+ */
+export async function loginDev(input: DevLoginInput): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/api/dev/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new ApiError(i18n.t('api.network'), 0);
+  }
+  if (!response.ok) {
+    let detail: string | undefined;
+    try { detail = ((await response.json()) as ProblemDetails).detail; } catch { /* corpo vazio */ }
+    throw new ApiError(detail || i18n.t('api.generic'), response.status);
+  }
+  const { token } = (await response.json()) as { token: string };
+  setToken(token);
 }
 
 /* ---------------------------------------------------------------------- */

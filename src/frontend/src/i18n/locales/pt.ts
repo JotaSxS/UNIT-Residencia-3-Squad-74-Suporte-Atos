@@ -23,6 +23,7 @@ const pt = {
     forbidden: 'Você não tem permissão para esta ação.',
     generic: 'Não foi possível concluir a solicitação. Tente novamente.',
   },
+  a11y: { skipToContent: 'Pular para o conteúdo', mainMenu: 'Menu principal', notificationsUnread: 'Notificações, {{n}} não lidas', unread: 'não lida' },
   brand: { alt: 'Atos Capital' },
   sla: {
     title: 'Prazo de SLA', done: 'concluído', met: 'cumprido', remaining: '{{hours}}h restantes',
@@ -49,6 +50,7 @@ const pt = {
       keepConnected: 'Manter conectado neste dispositivo', forgotPassword: 'Esqueci minha senha',
       submit: 'Entrar no portal', submitting: 'Entrando',
     },
+    devTokenFailed: 'Não foi possível obter o token de desenvolvimento da API. As telas que usam a API não vão carregar.',
     secure: 'Ambiente seguro. Acesso restrito a usuários autorizados.',
     themeToggleAria: 'Alternar tema claro e escuro', themeDark: 'Escuro', themeLight: 'Claro',
     showcase: {
@@ -88,6 +90,8 @@ const pt = {
     notFoundTitle: 'Nenhum chamado encontrado',
     emptyClientText: 'Quando precisar de ajuda, abra um chamado e acompanhe por aqui.',
     emptyTeamText: 'Bom trabalho, tudo em dia.', notFoundText: 'Tente buscar por outro número, empresa ou categoria.',
+    removeFilter: 'Remover filtro {{name}}', resultsCount: '{{n}} chamados encontrados', openTicket: 'Abrir chamado {{id}}',
+    pagination: { first: 'Primeira página', previous: 'Página anterior', next: 'Próxima página', last: 'Última página' },
     clearFilters: 'Limpar filtros',
     table: {
       label: 'Chamados', ticket: 'Chamado', categoryProduct: 'Categoria e produto', company: 'Empresa',
@@ -134,6 +138,7 @@ const pt = {
     totalPeriod: 'Chamados no período', currentFilter: 'no filtro atual',
     resolved: 'Resolvidos ou fechados', done: 'concluídos', nearSla: 'Próximos do SLA', needAttention: 'exigem atenção',
     byProduct: 'Chamados por produto', byCategory: 'Chamados recorrentes por categoria',
+    chartAlt: 'Gráfico de barras: chamados por produto. {{data}}',
     atRiskTitle: 'Chamados próximos do SLA', noRisk: 'Nenhum chamado em risco no momento.',
   },
   users: {

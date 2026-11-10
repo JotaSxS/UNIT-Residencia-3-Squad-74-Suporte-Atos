@@ -2,7 +2,6 @@
 
 export type ThemeMode = 'light' | 'dark';
 export type Role = 'cliente' | 'agente' | 'admin';
-export type ViewId = 'lista' | 'relatorios' | 'detalhe' | 'usuarios';
 
 export type StatusKey = 'aberto' | 'em_andamento' | 'aguardando_cliente' | 'resolvido' | 'fechado';
 export type PriorityKey = 'alta' | 'media' | 'baixa';

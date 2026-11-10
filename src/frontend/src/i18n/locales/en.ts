@@ -23,6 +23,7 @@ const en: Locale = {
     forbidden: 'You do not have permission to perform this action.',
     generic: 'The request could not be completed. Please try again.',
   },
+  a11y: { skipToContent: 'Skip to content', mainMenu: 'Main menu', notificationsUnread: 'Notifications, {{n}} unread', unread: 'unread' },
   brand: { alt: 'Atos Capital' },
   sla: {
     title: 'SLA deadline', done: 'completed', met: 'met', remaining: '{{hours}}h left',
@@ -49,6 +50,7 @@ const en: Locale = {
       keepConnected: 'Keep me signed in on this device', forgotPassword: 'Forgot my password',
       submit: 'Sign in to the portal', submitting: 'Signing in',
     },
+    devTokenFailed: 'Could not get the development token from the API. Screens that use the API will not load.',
     secure: 'Secure environment. Access restricted to authorized users.',
     themeToggleAria: 'Toggle light and dark theme', themeDark: 'Dark', themeLight: 'Light',
     showcase: {
@@ -88,6 +90,8 @@ const en: Locale = {
     notFoundTitle: 'No tickets found',
     emptyClientText: 'Whenever you need help, open a ticket and follow it here.',
     emptyTeamText: 'Good job, everything is up to date.', notFoundText: 'Try searching by another number, company or category.',
+    removeFilter: 'Remove filter {{name}}', resultsCount: '{{n}} tickets found', openTicket: 'Open ticket {{id}}',
+    pagination: { first: 'First page', previous: 'Previous page', next: 'Next page', last: 'Last page' },
     clearFilters: 'Clear filters',
     table: {
       label: 'Tickets', ticket: 'Ticket', categoryProduct: 'Category and product', company: 'Company',
@@ -134,6 +138,7 @@ const en: Locale = {
     totalPeriod: 'Tickets in the period', currentFilter: 'in the current filter',
     resolved: 'Resolved or closed', done: 'completed', nearSla: 'Near SLA', needAttention: 'need attention',
     byProduct: 'Tickets by product', byCategory: 'Recurring tickets by category',
+    chartAlt: 'Bar chart: tickets by product. {{data}}',
     atRiskTitle: 'Tickets near SLA', noRisk: 'No tickets at risk right now.',
   },
   users: {

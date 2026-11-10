@@ -13,6 +13,8 @@ import {
   ArrowForward, DarkModeOutlined, LightModeOutlined, LockOutlined, MailOutline, ShieldOutlined, Visibility, VisibilityOff,
 } from '@mui/icons-material';
 import { BrandMark, Eyebrow } from './ui';
+import { toast } from 'sonner';
+import { loginDev } from '../api';
 import FormTextField from './form/FormTextField';
 import LanguageSwitcher from './LanguageSwitcher';
 import { MONO } from '../theme';
@@ -88,7 +90,7 @@ function Showcase() {
 
       <Box sx={{ width: 'min(100%, 620px)', my: 'auto', py: { xs: 4, lg: 6 } }}>
         <Eyebrow color={PINK} sx={{ letterSpacing: '0.16em' }}>{t('login.showcase.eyebrow')}</Eyebrow>
-        <Typography component="h1" sx={{ fontSize: 'clamp(34px, 3.2vw, 52px)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-1.8px', maxWidth: 590 }}>
+        <Typography component="p" sx={{ fontSize: 'clamp(34px, 3.2vw, 52px)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-1.8px', maxWidth: 590 }}>
           {t('login.showcase.headlineA')}<br />{t('login.showcase.headlineB')}{' '}
           <Box component="em" sx={{ fontStyle: 'normal', color: PINK, position: 'relative', '&::after': { content: '""', position: 'absolute', left: 1, right: 0, bottom: -6, height: 5, borderTop: `2px solid ${PINK}`, borderRadius: '50%', transform: 'rotate(-1deg)' } }}>
             {t('login.showcase.headlineC')}
@@ -99,14 +101,14 @@ function Showcase() {
         </Typography>
         <ProductPreview />
         <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 3 }}>
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', mr: 0.5 }}>{t('login.showcase.integratedWith')}</Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)', mr: 0.5 }}>{t('login.showcase.integratedWith')}</Typography>
           {['Joe SFA B1', 'SAP Business One', 'SAP S/4HANA'].map((s) => (
-            <Box key={s} sx={{ fontSize: 10, px: 1.25, py: 0.6, borderRadius: 9, border: '1px solid rgba(255,255,255,0.16)', bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.82)' }}>{s}</Box>
+            <Box key={s} sx={{ fontSize: 11, px: 1.25, py: 0.6, borderRadius: 9, border: '1px solid rgba(255,255,255,0.3)', bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.9)' }}>{s}</Box>
           ))}
         </Stack>
       </Box>
 
-      <Stack direction="row" spacing={2.75} sx={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>
+      <Stack direction="row" spacing={2.75} sx={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
         <span>{t('login.showcase.copyright')}</span><span>{t('login.showcase.privacy')}</span><span>{t('login.showcase.security')}</span>
       </Stack>
     </Box>
@@ -140,35 +142,51 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
     defaultValues: { email: '', password: '' },
   });
 
-  const handleSso = () => {
-    setLoading(true);
-    setTimeout(() => onLogin({ role: 'cliente', nome: 'Fernanda Duarte', empresa: 'Banco Confiança' }), 900);
+  // Em desenvolvimento (npm run dev) pega um JWT de dev na API para que as telas que usam a API funcionem.
+  // Se a API estiver fora do ar o login segue (telas mockadas), com um aviso.
+  const getDevToken = async (input: Parameters<typeof loginDev>[0]) => {
+    if (!import.meta.env.DEV) return;
+    try { await loginDev(input); } catch { toast.warning(t('login.devTokenFailed')); }
   };
 
-  const handleTeamSubmit = ({ email }: TeamForm) => {
+  const handleSso = async () => {
+    setLoading(true);
+    await getDevToken({ email: 'fernanda.duarte@bancoconfianca.com', nome: 'Fernanda Duarte', papel: 'Cliente', grupoId: 'banco-confianca', grupoNome: 'Banco Confiança' });
+    onLogin({ role: 'cliente', nome: 'Fernanda Duarte', empresa: 'Banco Confiança' });
+  };
+
+  const handleTeamSubmit = async ({ email }: TeamForm) => {
     setLoading(true);
     const nome = email.split('@')[0].split('.').map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-    setTimeout(() => onLogin({ role: tab, nome, empresa: null, email }), 700);
+    await getDevToken({ email, nome, papel: tab === 'admin' ? 'Admin' : 'Agente' });
+    onLogin({ role: tab, nome, empresa: null, email });
   };
 
   const spinner = <CircularProgress size={16} color="inherit" />;
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(440px, 1fr) minmax(480px, 1fr)' }, bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: '100vh', '@supports (min-height: 100dvh)': { minHeight: '100dvh' }, display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' }, bgcolor: 'background.default' }}>
       <Showcase />
 
-      <Box component="main" sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: { xs: 2, sm: 5 }, pt: 10, pb: 4.5, minHeight: '100vh' }}>
-        <Box sx={{ display: { md: 'none' }, position: 'absolute', top: 24, left: 24 }}><BrandMark onDark={themeMode === 'dark'} width={120} /></Box>
-        <Button size="small" variant="outlined" onClick={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}
-          startIcon={themeMode === 'light' ? <DarkModeOutlined /> : <LightModeOutlined />}
-          aria-label={t('login.themeToggleAria')}
-          sx={{ position: 'absolute', top: 24, right: 24, borderRadius: 9, minHeight: 32, fontSize: 12, bgcolor: 'background.paper' }}>
-          {themeMode === 'light' ? t('login.themeDark') : t('login.themeLight')}
-        </Button>
-        <Box sx={{ position: 'absolute', top: 24, right: 130 }}><LanguageSwitcher /></Box>
+      <Box component="main" sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: { xs: 1.5, sm: 5 }, pt: { xs: 12, sm: 10 }, pb: 4.5, minHeight: '100vh', '@supports (min-height: 100dvh)': { minHeight: '100dvh' } }}>
+        {/* Barra superior em fluxo (flex): marca, idioma e tema nunca se sobrepõem, mesmo em 320 px. */}
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap
+          sx={{ position: 'absolute', top: 16, left: 16, right: 16 }}>
+          <Box sx={{ display: { md: 'none' } }}><BrandMark onDark={themeMode === 'dark'} width={110} /></Box>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ ml: 'auto' }}>
+            <LanguageSwitcher />
+            <Button size="small" variant="outlined" onClick={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}
+              startIcon={themeMode === 'light' ? <DarkModeOutlined /> : <LightModeOutlined />}
+              aria-label={t('login.themeToggleAria')}
+              sx={{ borderRadius: 9, minHeight: 32, fontSize: 12, bgcolor: 'background.paper' }}>
+              {themeMode === 'light' ? t('login.themeDark') : t('login.themeLight')}
+            </Button>
+          </Stack>
+        </Stack>
 
         <Paper variant="outlined" sx={{ width: 'min(100%, 440px)', p: { xs: 3, sm: 4 }, borderRadius: 4, boxShadow: '0 30px 70px rgba(0,0,0,0.10)' }}>
-          <Tabs value={tab} onChange={(_, v: Role) => { setTab(v); reset(); }} variant="fullWidth" sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={tab} onChange={(_, v: Role) => { setTab(v); reset(); }} variant="fullWidth"
+            sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minWidth: 0, px: { xs: 0.5, sm: 2 }, fontSize: { xs: 12.5, sm: 14 } } }}>
             <Tab value="cliente" label={t('login.tabs.cliente')} />
             <Tab value="agente" label={t('login.tabs.agente')} />
             <Tab value="admin" label={t('login.tabs.admin')} />
@@ -180,7 +198,7 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
             </Box>
             <Box>
               <Eyebrow>{t(`login.copy.${tab}.eyebrow`)}</Eyebrow>
-              <Typography sx={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.6px' }}>{t('login.welcome')}</Typography>
+              <Typography component="h1" sx={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.6px' }}>{t('login.welcome')}</Typography>
               <Typography variant="body2" color="text.secondary" mt={0.5}>
                 {t(`login.copy.${tab}.subtitle`)}
               </Typography>

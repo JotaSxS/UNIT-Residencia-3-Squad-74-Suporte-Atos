@@ -81,8 +81,8 @@ export function buildTheme(mode: ThemeMode) {
       h3: { fontSize: 14, fontWeight: 700 },
       body1: { fontSize: 14 },
       body2: { fontSize: 13 },
-      caption: { fontSize: 11, color: t.textMuted },
-      overline: { fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', lineHeight: 1.6 },
+      caption: { fontSize: 12, color: t.textMuted },
+      overline: { fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', lineHeight: 1.6 },
       button: { textTransform: 'none', fontWeight: 600, fontSize: 13 },
     },
     // Tokens extras do design system que não existem na paleta do MUI.
@@ -107,8 +107,14 @@ export function buildTheme(mode: ThemeMode) {
           '*:focus-visible': { outline: `2px solid ${t.brandText}`, outlineOffset: 2 },
           '.MuiOutlinedInput-input:focus-visible': { outline: 'none' },
           '::selection': { background: t.brandSoft },
+          // Respeita "reduzir movimento" do sistema operacional (WCAG 2.3.3 / boas práticas).
+          '@media (prefers-reduced-motion: reduce)': {
+            '*, *::before, *::after': { animationDuration: '0.01ms !important', animationIterationCount: '1 !important', transitionDuration: '0.01ms !important', scrollBehavior: 'auto !important' },
+          },
         },
       },
+      // Placeholder com contraste suficiente (o padrão do MUI usa opacidade 0.42).
+      MuiInputBase: { styleOverrides: { input: { '&::placeholder': { color: t.textMuted, opacity: 1 } } } },
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: {
@@ -118,7 +124,7 @@ export function buildTheme(mode: ThemeMode) {
             background: `linear-gradient(100deg, ${t.brandPrimary}, ${t.brandPrimaryEnd})`,
             boxShadow: `0 6px 18px ${t.brandPrimaryShadow}`,
             transition: 'transform .16s ease, box-shadow .16s ease, background .16s ease',
-            '&:hover': { background: t.brandPrimaryHover, transform: 'translateY(-1px)', boxShadow: `0 10px 24px ${t.brandPrimaryShadow}` },
+            '&:hover': { background: t.brandPrimaryHover, '@media (prefers-reduced-motion: no-preference)': { transform: 'translateY(-1px)' }, boxShadow: `0 10px 24px ${t.brandPrimaryShadow}` },
             '&.Mui-disabled': { opacity: 0.7, color: t.onBrand },
           },
           outlined: {

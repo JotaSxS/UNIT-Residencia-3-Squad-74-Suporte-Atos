@@ -10,6 +10,12 @@ import { STATUS, PRIORITY } from '../data';
 import { MONO } from '../theme';
 import type { PriorityKey, StatusKey, Ticket, ToneKey } from '../types';
 
+/** Texto só para leitores de tela (equivalente ao .sr-only). */
+export const visuallyHidden = {
+  border: 0, clip: 'rect(0 0 0 0)', height: '1px', margin: '-1px', overflow: 'hidden',
+  padding: 0, position: 'absolute', whiteSpace: 'nowrap', width: '1px',
+} as const;
+
 export function BrandMark({ onDark, width = 150 }: { onDark?: boolean; width?: number }) {
   const { t } = useTranslation();
   return (

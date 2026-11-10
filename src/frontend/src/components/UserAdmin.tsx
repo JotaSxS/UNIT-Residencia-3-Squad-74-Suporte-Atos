@@ -150,7 +150,7 @@ export default function UserAdmin() {
               <Typography sx={{ py: 5, textAlign: 'center', color: 'text.disabled' }}>{t('users.none')}</Typography>
             ) : (
               <Box sx={{ overflowX: 'auto' }}>
-                <Table size="small">
+                <Table size="small" aria-label={t('users.groupUsers')}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: atos.tableHeaderBg }}>
                       <TableCell>{t('users.table.name')}</TableCell>

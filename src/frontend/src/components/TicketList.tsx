@@ -2,10 +2,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Button, Chip, CircularProgress, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, IconButton,
-  InputAdornment, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination,
+  InputAdornment, Link, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination,
   TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
@@ -13,7 +14,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
 import {
-  Add, AccessTime, BarChartOutlined, CheckCircleOutline, ChevronRight, Close, ConfirmationNumberOutlined,
+  Add, AccessTime, Cancel, BarChartOutlined, CheckCircleOutline, ChevronRight, Close, ConfirmationNumberOutlined,
   FileDownloadOutlined, HeadsetMicOutlined, InboxOutlined, Refresh, Search, Tune,
 } from '@mui/icons-material';
 import { PRODUCTS, STATUS } from '../data';
@@ -25,7 +26,7 @@ import i18n from '../i18n';
 import { notifyApiError } from '../notify';
 import type { Role, Session, StatusKey, Ticket } from '../types';
 import FormTextField from './form/FormTextField';
-import { Eyebrow, isAtRisk, isOpenTicket, PriorityLabel, StatTile, StatusChip } from './ui';
+import { Eyebrow, isAtRisk, isOpenTicket, PriorityLabel, StatTile, StatusChip, visuallyHidden } from './ui';
 import { MONO } from '../theme';
 
 function CustomerInsights({ tickets }: { tickets: Ticket[] }) {
@@ -114,6 +115,8 @@ interface NewTicketModalProps {
 
 export function NewTicketModal({ user, onClose, onCreate }: NewTicketModalProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm')); // celular: modal em tela cheia
   const [opcoes, setOpcoes] = useState<SlaCategoriaDto[]>([]);   // pares produto/categoria vindos da API
   const [carregando, setCarregando] = useState(true);
   const [erroOpcoes, setErroOpcoes] = useState(false);
@@ -154,12 +157,12 @@ export function NewTicketModal({ user, onClose, onCreate }: NewTicketModalProps)
   };
 
   return (
-    <Dialog open onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs"
+    <Dialog open onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs" fullScreen={fullScreen} aria-labelledby="new-ticket-title"
       PaperProps={{ component: 'form', onSubmit: handleSubmit(onSubmit), noValidate: true }}>
       <DialogTitle sx={{ pb: 1 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-          <Box><Eyebrow>{t('newTicket.eyebrow')}</Eyebrow><Typography variant="h2" sx={{ fontSize: 18 }}>{t('newTicket.title')}</Typography></Box>
-          <IconButton aria-label={t('common.close')} onClick={onClose} size="small" disabled={isSubmitting}><Close /></IconButton>
+          <Box><Eyebrow>{t('newTicket.eyebrow')}</Eyebrow><Typography id="new-ticket-title" variant="h2" sx={{ fontSize: 18 }}>{t('newTicket.title')}</Typography></Box>
+          <IconButton aria-label={t('common.close')} onClick={onClose} disabled={isSubmitting}><Close /></IconButton>
         </Stack>
       </DialogTitle>
       <DialogContent>
@@ -254,7 +257,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
   if (dateTo) activeFilters.push({ key: 'to', label: `${t('tickets.openedTo')}: ${dateTo.format(DATE_FORMAT)}`, clear: () => setDateTo(null) });
 
   const refresh = () => { setRefreshing(true); setTimeout(() => setRefreshing(false), 500); };
-  const head = { bgcolor: atos.tableHeaderBg, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary' };
+  const head = { bgcolor: atos.tableHeaderBg, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'text.secondary' };
 
   return (
     <Box sx={{ maxWidth: 1152 }}>
@@ -275,6 +278,8 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
         <StatTile label={t('tickets.nearSla')} value={riskCount} tone={riskCount ? 'error' : 'neutral'} detail={t('tickets.nearSlaDetail')} icon={AccessTime} />
       </Box>
 
+      <Box role="status" sx={visuallyHidden}>{t('tickets.resultsCount', { n: filtered.length })}</Box>
+
       <Stack direction="row" spacing={1.25} mb={1.25}>
         <TextField value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('tickets.searchPlaceholder')} size="small" fullWidth type="search"
           inputProps={{ 'aria-label': t('tickets.searchAria') }}
@@ -282,11 +287,11 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
           sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'background.paper', height: 42 } }} />
         {[
           { label: t('tickets.refresh'), icon: <Refresh fontSize="small" sx={refreshing ? { animation: 'spin 1s linear infinite', '@keyframes spin': { to: { transform: 'rotate(360deg)' } } } : null} />, onClick: refresh },
-          { label: t('tickets.filters'), icon: <Tune fontSize="small" />, onClick: () => setFiltersOpen((o) => !o), on: filtersOpen || activeFilters.length > 0 },
+          { label: t('tickets.filters'), icon: <Tune fontSize="small" />, onClick: () => setFiltersOpen((o) => !o), on: filtersOpen || activeFilters.length > 0, expanded: filtersOpen },
           { label: t('tickets.export'), icon: <FileDownloadOutlined fontSize="small" /> },
         ].map((b) => (
           <Tooltip key={b.label} title={b.label}>
-            <IconButton aria-label={b.label} onClick={b.onClick} sx={{ width: 42, height: 42, borderRadius: 2, border: 1, borderColor: b.on ? 'primary.main' : 'divider', color: b.on ? 'primary.main' : 'text.secondary', bgcolor: 'background.paper', flexShrink: 0 }}>
+            <IconButton aria-label={b.label} aria-expanded={b.expanded} onClick={b.onClick} sx={{ width: 42, height: 42, borderRadius: 2, border: 1, borderColor: b.on ? 'primary.main' : 'divider', color: b.on ? 'primary.main' : 'text.secondary', bgcolor: 'background.paper', flexShrink: 0 }}>
               {b.icon}
             </IconButton>
           </Tooltip>
@@ -312,7 +317,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
 
       {activeFilters.length > 0 && (
         <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1} justifyContent="flex-end" mb={1.5}>
-          {activeFilters.map((f) => <Chip key={f.key} label={f.label} onDelete={f.clear} size="small" variant="outlined" />)}
+          {activeFilters.map((f) => <Chip key={f.key} label={f.label} onDelete={f.clear} deleteIcon={<Cancel titleAccess={t('tickets.removeFilter', { name: f.label })} />} size="small" variant="outlined" />)}
         </Stack>
       )}
 
@@ -331,32 +336,37 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
       ) : (
         <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
           <TableContainer>
-            <Table size="medium" aria-label={t('tickets.table.label')}>
+            <Table size="medium" aria-label={t('tickets.table.label')} sx={{ '& th, & td': { px: { xs: 1, sm: 2 } } }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={head}>{t('tickets.table.ticket')}</TableCell>
                   <TableCell sx={head}>{t('tickets.table.categoryProduct')}</TableCell>
                   {!isClient && <TableCell sx={{ ...head, display: { xs: 'none', md: 'table-cell' } }}>{t('tickets.table.company')}</TableCell>}
-                  <TableCell sx={head}>{t('tickets.table.priority')}</TableCell>
+                  <TableCell sx={{ ...head, display: { xs: 'none', sm: 'table-cell' } }}>{t('tickets.table.priority')}</TableCell>
                   <TableCell sx={{ ...head, display: { xs: 'none', md: 'table-cell' } }}>{t('tickets.table.agent')}</TableCell>
                   <TableCell sx={head}>{t('tickets.table.status')}</TableCell>
-                  <TableCell sx={head} width={32} />
+                  <TableCell sx={{ ...head, display: { xs: 'none', sm: 'table-cell' } }} width={32} />
                 </TableRow>
               </TableHead>
               <TableBody>
                 {visible.map((tk, i) => (
-                  <TableRow key={tk.id} hover tabIndex={0} onClick={() => onOpen(tk.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(tk.id); }}
+                  <TableRow key={tk.id} hover onClick={() => onOpen(tk.id)}
                     sx={{ cursor: 'pointer', bgcolor: i % 2 === 1 ? atos.tableRowAlt : 'background.paper', '& td': { py: 1.5 } }}>
-                    <TableCell sx={{ borderLeft: 3, borderLeftColor: isAtRisk(tk) ? 'error.main' : 'transparent', fontFamily: MONO, fontSize: 11, color: 'text.disabled', whiteSpace: 'nowrap' }}>{tk.id}</TableCell>
+                    <TableCell sx={{ borderLeft: 3, borderLeftColor: isAtRisk(tk) ? 'error.main' : 'transparent', whiteSpace: 'nowrap' }}>
+                      {/* Botão real: alcançável por teclado (Tab/Enter/Espaço) e anunciado por leitores de tela. */}
+                      <Link component="button" type="button" underline="hover" onClick={(e: React.MouseEvent) => { e.stopPropagation(); onOpen(tk.id); }}
+                        aria-label={t('tickets.openTicket', { id: tk.id })} sx={{ fontFamily: MONO, fontSize: 12, color: 'text.secondary', textAlign: 'left' }}>{tk.id}</Link>
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>
                       {tk.assunto || `${tk.categoria} · ${tk.produto}`}
                       {tk.assunto && <Typography variant="caption" component="div" sx={{ fontWeight: 400 }}>{tk.categoria} · {tk.produto}</Typography>}
+                      <Box sx={{ display: { xs: 'block', sm: 'none' }, mt: 0.5 }}><PriorityLabel level={tk.prioridade} /></Box>
                     </TableCell>
                     {!isClient && <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>{tk.empresa}</TableCell>}
-                    <TableCell><PriorityLabel level={tk.prioridade} /></TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}><PriorityLabel level={tk.prioridade} /></TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, color: 'text.secondary' }}>{tk.agente || t('tickets.table.noAgent')}</TableCell>
                     <TableCell><StatusChip status={tk.status} /></TableCell>
-                    <TableCell align="right"><ChevronRight fontSize="small" sx={{ color: 'text.disabled' }} /></TableCell>
+                    <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}><ChevronRight fontSize="small" aria-hidden sx={{ color: 'text.disabled' }} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -365,6 +375,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
           <TablePagination component="div" count={filtered.length} page={page} onPageChange={(_, p) => setPage(p)}
             rowsPerPage={rowsPerPage} onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
             rowsPerPageOptions={[5, 10, 25]} labelRowsPerPage={t('tickets.rowsPerPage')}
+            getItemAriaLabel={(type: 'first' | 'last' | 'next' | 'previous') => t(`tickets.pagination.${type}`)}
             labelDisplayedRows={({ from, to, count }) => t('tickets.displayedRows', { from, to, total: count })}
             sx={{ borderTop: 1, borderColor: 'divider', '& .MuiTablePagination-toolbar': { minHeight: 48 } }} />
         </Paper>

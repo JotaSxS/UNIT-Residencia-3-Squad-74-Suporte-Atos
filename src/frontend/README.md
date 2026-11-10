@@ -13,19 +13,13 @@ npm run dev     # http://localhost:5173
 
 Requer Node.js 18 ou superior.
 
-### Abertura de chamado (API real)
+### Telas que usam a API real (abertura de chamado e cadastro de usuários)
 
-A tela "Abrir chamado" (campo **Título obrigatório**) chama `POST /api/chamados` e carrega produto/categoria
-de `GET /api/sla-categorias`. Configure em `.env.local` (veja `.env.example`):
-
-```
-VITE_API_URL=http://localhost:5177
-VITE_API_TOKEN=<jwt de desenvolvimento>
-```
-
-Para gerar o token de desenvolvimento use `backend/scripts/mint-token.ps1` (o login SSO ainda é simulado, então o
-token é fornecido por aqui ou gravado em `sessionStorage` na chave `atos_token`). A API precisa estar rodando em
-Development com o banco populado (`backend/database/seed.sql`).
+Em desenvolvimento (`npm run dev`) o login do portal pede um token de dev à API (`POST /api/dev/token`) e o guarda em
+`sessionStorage` ("atos_token"); é só subir a API em Development (veja `backend/README.md`). A URL da API vem de
+`VITE_API_URL` (padrão `http://localhost:5177`). Alternativa manual: gere um token com `backend/scripts/mint-token.ps1` e
+coloque em `VITE_API_TOKEN` no `.env.local` (copie de `.env.example`). Em produção o SSO deve gravar o token em
+`sessionStorage` na chave `atos_token`.
 
 ## Padrão de interface: MUI + tokens
 
@@ -55,6 +49,41 @@ Antes ele usava Tailwind; foi migrado para alinhar ao padrão.
 - **Obrigatoriedade:** campo obrigatório leva `required` (asterisco vermelho no rótulo, definido no tema) desde o início;
   a validação não é o único aviso. `mode: 'onTouched'` valida ao sair do campo, não só no envio.
 
+## Acessibilidade (WCAG 2.1 AA) e responsividade
+
+Já aplicado no código:
+
+- **Contraste:** paleta vinho verificada (texto ≥ 4,5:1; bordas/ícones ≥ 3:1) nos temas claro e escuro; textos translúcidos sobre o
+  vinho ≥ 5:1; placeholder com contraste real; texto mínimo de 12 px (legendas, papéis, rodapés).
+- **Teclado:** foco sempre visível (`:focus-visible`), link "Pular para o conteúdo", foco levado ao conteúdo ao trocar de tela,
+  chamados abertos por botão real (Tab/Enter/Espaço) em vez de linha clicável, `aria-expanded` nos filtros.
+- **Leitores de tela:** landmarks (`header`, `nav` com nome, `main`), `aria-current` no menu, títulos em ordem (h1 → h2),
+  erros de formulário com `role="alert"` e `aria-describedby`, avisos de resultado (`role="status"`), "não lida" nas notificações,
+  gráfico com texto alternativo + tabela oculta, abas com `tabpanel`, rótulos traduzidos na paginação e nos filtros.
+- **Movimento:** respeita `prefers-reduced-motion`.
+- **Mobile:** sem sobreposição no topo do login (320 px), tabs do login ajustadas, `100dvh` (barra do navegador), tabela de chamados
+  com colunas essenciais (prioridade vai para baixo do título), modal de novo chamado em tela cheia, gráfico em barras horizontais,
+  gaveta e popover limitados à largura da tela, botões de 44 px no topo, formulários em largura total.
+
+Para conferir à mão (recomendado antes de entregar): 320 / 360 / 768 / 1024 px no DevTools (sem rolagem horizontal fora de tabelas);
+percorrer todas as telas só com Tab/Shift+Tab/Enter/Esc; zoom de 200%; Lighthouse (Accessibility) e a extensão axe DevTools em cada tela,
+nos dois temas e nos três idiomas.
+
+## Rotas (React Router) e navegação por papel
+
+`BrowserRouter` em `main.tsx`; rotas em `SupportPortal.tsx`. Sem sessão aparece o login em qualquer URL; depois do login a URL `/` vai para `/chamados`.
+
+| Rota | Quem acessa | Tela |
+|---|---|---|
+| `/chamados` | todos | Fila (equipe/admin) ou "Meus chamados" (cliente) |
+| `/chamados/:id` | todos (cliente só da própria empresa) | Detalhe do chamado |
+| `/relatorios` | todos | Relatórios |
+| `/usuarios` | só administrador | Cadastro de usuários |
+| qualquer outra | — | redireciona para `/chamados` |
+
+O menu lateral usa `NavLink` (item ativo + `aria-current="page"`). Em produção o servidor precisa devolver `index.html` para
+qualquer rota (fallback de SPA); o `vite dev` e o `vite preview` já fazem isso. A autorização real continua sendo da API.
+
 ## Estrutura
 
 O projeto é **TypeScript** (`strict`). Para checar os tipos: `npm run typecheck` (o `npm run build` também checa).
@@ -62,7 +91,7 @@ O projeto é **TypeScript** (`strict`). Para checar os tipos: `npm run typecheck
 ```
 src/
 ├─ main.tsx              # bootstrap
-├─ SupportPortal.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e troca de telas
+├─ SupportPortal.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e rotas
 ├─ types.ts              # tipos de domínio (Ticket, Session, Role, ViewId...)
 ├─ api.ts                # cliente HTTP da API + tipos dos DTOs (chamados, usuários, grupos)
 ├─ dates.ts              # dayjs: formatos DD/MM/YYYY e leitura de datas da API

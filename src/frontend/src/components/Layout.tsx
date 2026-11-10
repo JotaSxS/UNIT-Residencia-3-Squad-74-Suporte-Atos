@@ -4,6 +4,7 @@ import {
   AppBar, Avatar, Badge, Box, Breadcrumbs, Button, Divider, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, Popover, Stack, Toolbar, Typography,
 } from '@mui/material';
+import { NavLink } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import type { SvgIconComponent } from '@mui/icons-material';
@@ -11,34 +12,32 @@ import {
   BarChartOutlined, Close, ConfirmationNumberOutlined, DarkModeOutlined, HeadsetMicOutlined, LightModeOutlined,
   Logout, ManageAccountsOutlined, Menu as MenuIcon, NotificationsNone, ShieldOutlined,
 } from '@mui/icons-material';
-import { BrandMark } from './ui';
+import { BrandMark, visuallyHidden } from './ui';
 import LanguageSwitcher from './LanguageSwitcher';
 import { MONO } from '../theme';
-import type { AppNotification, Session, ThemeMode, ViewId } from '../types';
+import type { AppNotification, Session, ThemeMode } from '../types';
 
 export const DRAWER_WIDTH = 256;
 
 interface SidebarContentProps {
   session: Session;
-  view: ViewId;
-  setView: (view: ViewId) => void;
   onLogout: () => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   onClose?: () => void;
 }
 
-interface NavItem { id: ViewId; label: string; icon: SvgIconComponent }
+interface NavItem { path: string; label: string; icon: SvgIconComponent }
 
-function SidebarContent({ session, view, setView, onLogout, themeMode, setThemeMode, onClose }: SidebarContentProps) {
+function SidebarContent({ session, onLogout, themeMode, setThemeMode, onClose }: SidebarContentProps) {
   const { atos } = useTheme();
   const { t } = useTranslation();
   // Equipe e administrador veem a fila; o administrador também tem o cadastro de usuários.
   const isClient = session.role === 'cliente';
   const nav: NavItem[] = [
-    { id: 'lista', label: isClient ? t('nav.myTickets') : t('nav.queue'), icon: isClient ? ConfirmationNumberOutlined : HeadsetMicOutlined },
-    { id: 'relatorios', label: t('nav.reports'), icon: BarChartOutlined },
-    ...(session.role === 'admin' ? [{ id: 'usuarios' as const, label: t('nav.users'), icon: ManageAccountsOutlined }] : []),
+    { path: '/chamados', label: isClient ? t('nav.myTickets') : t('nav.queue'), icon: isClient ? ConfirmationNumberOutlined : HeadsetMicOutlined },
+    { path: '/relatorios', label: t('nav.reports'), icon: BarChartOutlined },
+    ...(session.role === 'admin' ? [{ path: '/usuarios' as const, label: t('nav.users'), icon: ManageAccountsOutlined }] : []),
   ];
   const soft = { color: atos.menuText, opacity: 0.7 };
   return (
@@ -49,27 +48,28 @@ function SidebarContent({ session, view, setView, onLogout, themeMode, setThemeM
             <BrandMark onDark width={150} />
             <Stack direction="row" alignItems="center" spacing={0.75} mt={1.5} sx={soft}>
               <ShieldOutlined sx={{ fontSize: 13 }} />
-              <Typography variant="caption" sx={{ color: 'inherit', fontSize: 10 }}>{t('nav.secure')}</Typography>
+              <Typography variant="caption" sx={{ color: 'inherit', fontSize: 12 }}>{t('nav.secure')}</Typography>
             </Stack>
           </Box>
           {onClose && <IconButton aria-label={t('nav.closeMenu')} onClick={onClose} sx={{ color: atos.menuText, mt: -0.5, mr: -1 }}><Close /></IconButton>}
         </Stack>
-        <List sx={{ mt: 1.5, px: 1.5 }}>
+        <List component="nav" aria-label={t('a11y.mainMenu')} sx={{ mt: 1.5, px: 1.5 }}>
           {nav.map((item) => {
             const Icon = item.icon;
             return (
               <ListItemButton
-                key={item.id}
-                selected={view === item.id}
-                onClick={() => setView(item.id)}
+                key={item.path}
+                component={NavLink}
+                to={item.path}
+                onClick={onClose}
                 sx={{
                   borderRadius: 2, mb: 0.5, color: atos.menuText, opacity: 0.78,
-                  '&.Mui-selected, &.Mui-selected:hover': { bgcolor: 'rgba(255,255,255,0.14)', opacity: 1 },
+                  '&.active, &.active:hover': { bgcolor: 'rgba(255,255,255,0.14)', opacity: 1 },
                   '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', opacity: 1 },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><Icon fontSize="small" /></ListItemIcon>
-                <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 14, fontWeight: view === item.id ? 600 : 500 }} />
+                <ListItemText primary={item.label} primaryTypographyProps={{ fontSize: 14, fontWeight: 500 }} />
               </ListItemButton>
             );
           })}
@@ -106,7 +106,7 @@ type SidebarProps = Omit<SidebarContentProps, 'onClose'> & { mobileOpen: boolean
 
 export function Sidebar({ mobileOpen, onMobileClose, ...props }: SidebarProps) {
   const { atos } = useTheme();
-  const paper = { width: DRAWER_WIDTH, background: atos.menuGradient, border: 0, boxSizing: 'border-box', '& *:focus-visible': { outlineColor: '#ffffff' } };
+  const paper = { width: DRAWER_WIDTH, maxWidth: '88vw', background: atos.menuGradient, border: 0, boxSizing: 'border-box', '& *:focus-visible': { outlineColor: '#ffffff' } };
   return (
     <>
       <Drawer variant="temporary" open={mobileOpen} onClose={onMobileClose} ModalProps={{ keepMounted: true }}
@@ -148,21 +148,23 @@ export function TopBar({ session, notifications, unreadCount, onOpenNav, onMarkA
         </Breadcrumbs>
 
         <Stack direction="row" alignItems="center" spacing={1.5} sx={{ ml: 'auto' }}>
-          <IconButton aria-label={t('notifications.title')} onClick={(e) => setAnchor(e.currentTarget)} sx={{ border: 1, borderColor: 'divider', width: 36, height: 36 }}>
+          <IconButton aria-label={unreadCount > 0 ? t('a11y.notificationsUnread', { n: unreadCount }) : t('notifications.title')}
+            aria-haspopup="dialog" aria-expanded={Boolean(anchor)} onClick={(e) => setAnchor(e.currentTarget)}
+            sx={{ border: 1, borderColor: 'divider', width: { xs: 44, md: 36 }, height: { xs: 44, md: 36 } }}>
             <Badge color="primary" variant="dot" invisible={unreadCount === 0}><NotificationsNone fontSize="small" /></Badge>
           </IconButton>
-          <Avatar sx={{ width: 32, height: 32, fontSize: 11, fontWeight: 700, color: '#fff', background: (t) => `linear-gradient(145deg, ${t.atos.brandPrimaryStrong}, ${t.atos.brandPrimaryMuted})` }}>
+          <Avatar aria-hidden sx={{ width: 32, height: 32, fontSize: 11, fontWeight: 700, color: '#fff', background: (t) => `linear-gradient(145deg, ${t.atos.brandPrimaryStrong}, ${t.atos.brandPrimaryMuted})` }}>
             {initials}
           </Avatar>
           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
             <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{session.nome}</Typography>
-            <Typography variant="caption" sx={{ fontSize: 10 }}>{t(`nav.roleLabels.${session.role}`)}</Typography>
+            <Typography variant="caption" sx={{ fontSize: 12 }}>{t(`nav.roleLabels.${session.role}`)}</Typography>
           </Box>
         </Stack>
 
         <Popover open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          PaperProps={{ sx: { width: 320, mt: 1 } }}>
+          PaperProps={{ sx: { width: 'min(320px, calc(100vw - 24px))', mt: 1 } }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5 }}>
             <Typography variant="h3" sx={{ fontSize: 13 }}>{t('notifications.title')}</Typography>
             {unreadCount > 0 && <Button size="small" onClick={onMarkAllRead} sx={{ minHeight: 0, fontSize: 12 }}>{t('notifications.markAll')}</Button>}
@@ -174,7 +176,8 @@ export function TopBar({ session, notifications, unreadCount, onOpenNav, onMarkA
             <List disablePadding sx={{ maxHeight: 340, overflow: 'auto' }}>
               {notifications.map((n) => (
                 <ListItemButton key={n.id} onClick={() => onMarkOneRead(n.id)} divider sx={{ alignItems: 'flex-start', gap: 1.25, bgcolor: n.lida ? 'transparent' : 'action.hover' }}>
-                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', mt: 0.9, flexShrink: 0, bgcolor: n.lida ? 'transparent' : 'primary.main' }} />
+                  <Box aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', mt: 0.9, flexShrink: 0, bgcolor: n.lida ? 'transparent' : 'primary.main' }} />
+                  {!n.lida && <Box component="span" sx={visuallyHidden}>{t('a11y.unread')}: </Box>}
                   <ListItemText
                     primary={n.texto}
                     secondary={n.data}
