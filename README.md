@@ -269,9 +269,10 @@ src/
     src/
       api/
       components/
-      SupportPortal.jsx
-      data.js
-      theme.js
+      SupportPortal.tsx
+      data.ts
+      tokens.ts
+      theme.ts
 database/
 docs/
 ```

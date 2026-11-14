@@ -2,7 +2,7 @@
 
 Front-end do MVP do termo de abertura: login, fila de atendimento com SLA, resposta
 a chamados, notas internas, notificações e relatórios. A **abertura de chamado já usa a API real**
-(`src/api.js`); o restante das telas ainda usa dados mockados (`src/data.js`).
+(`src/api.ts`); o restante das telas ainda usa dados mockados (`src/data.ts`).
 
 ## Como rodar
 
@@ -26,16 +26,14 @@ coloque em `VITE_API_TOKEN` no `.env.local` (copie de `.env.example`). Em produ�
 O front segue o padrão da Atos Capital: **Material UI (MUI v5) com tokens do design system**.
 Antes ele usava Tailwind; foi migrado para alinhar ao padrão.
 
-- `src/theme.js` é a **fonte única dos tokens** (marca, superfícies, texto, estados, menu,
-  tabela, scrollbar), em claro e escuro, e monta o tema com `createTheme`. Também define a
-  escala tipográfica do doc (título 24/600, seção 16/600, corpo 13-14, rótulo 12/500, apoio 11).
+- `src/tokens.ts` reúne as paletas clara e escura, as fontes, a escala tipográfica e o raio padrão.
+- `src/theme.ts` aplica esses valores ao tema MUI com `createTheme`.
 - Tokens que não existem na paleta do MUI ficam em `theme.atos` (ex.: `atos.menuGradient`,
   `atos.tableHeaderBg`, `atos.tones.info.bg`). Use `useTheme()` para lê-los.
 - Componentes usados: `Button`, `TextField`, `Dialog`, `Tabs`, `Table`/`TablePagination`,
   `Chip`, `Drawer`, `AppBar`, `Popover`, `Stepper`, `Snackbar`, `Skeleton`, `Breadcrumbs`.
 - Ícones: `@mui/icons-material`. Gráficos: `recharts` (cores vindas do tema).
-- `src/index.css` só tem o reset mínimo. Para mudar cor, fonte ou espaçamento global, edite
-  `theme.js`, não os componentes.
+- `src/index.css` contém o reset global.
 
 ## Padrões do projeto
 
@@ -96,7 +94,8 @@ src/
 ├─ api.ts                # cliente HTTP da API + tipos dos DTOs (chamados, usuários, grupos)
 ├─ dates.ts              # dayjs: formatos DD/MM/YYYY e leitura de datas da API
 ├─ notify.ts             # notifyApiError (sonner)
-├─ theme.ts              # tokens + tema MUI (claro/escuro), com a extensão de tipo `theme.atos`
+├─ tokens.ts             # valores do Design System
+├─ theme.ts              # tema MUI (claro/escuro), com a extensão de tipo `theme.atos`
 ├─ data.ts               # constantes de domínio e dados mockados da fila
 ├─ i18n/                 # configuração do i18next e locales pt.ts / en.ts / es.ts
 └─ components/
