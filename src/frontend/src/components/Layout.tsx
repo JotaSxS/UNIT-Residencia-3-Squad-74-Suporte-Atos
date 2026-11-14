@@ -14,7 +14,7 @@ import {
 } from '@mui/icons-material';
 import { BrandMark, visuallyHidden } from './ui';
 import LanguageSwitcher from './LanguageSwitcher';
-import { MONO } from '../theme';
+import { MONO } from '../tokens';
 import type { AppNotification, Session, ThemeMode } from '../types';
 
 export const DRAWER_WIDTH = 256;

@@ -15,7 +15,7 @@ import { AGENTES, STAGES } from '../data';
 import { formatDateTime } from '../dates';
 import FormTextField from './form/FormTextField';
 import { Eyebrow, SlaBar, StatusChip } from './ui';
-import { MONO } from '../theme';
+import { MONO } from '../tokens';
 import type { Message as MessageData, Role, Session, StatusKey, Ticket } from '../types';
 
 interface MessageProps { autor: string; data: string; texto: string; tint?: boolean; note?: boolean }

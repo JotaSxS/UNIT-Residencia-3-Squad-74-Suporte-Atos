@@ -7,7 +7,7 @@ import { Box, Chip, LinearProgress, Paper, Stack, Typography } from '@mui/materi
 import { useTheme } from '@mui/material/styles';
 import { WarningAmberRounded } from '@mui/icons-material';
 import { STATUS, PRIORITY } from '../data';
-import { MONO } from '../theme';
+import { MONO } from '../tokens';
 import type { PriorityKey, StatusKey, Ticket, ToneKey } from '../types';
 
 /** Texto só para leitores de tela (equivalente ao .sr-only). */

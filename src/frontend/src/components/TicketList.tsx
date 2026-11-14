@@ -27,7 +27,7 @@ import { notifyApiError } from '../notify';
 import type { Role, Session, StatusKey, Ticket } from '../types';
 import FormTextField from './form/FormTextField';
 import { Eyebrow, isAtRisk, isOpenTicket, PriorityLabel, StatTile, StatusChip, visuallyHidden } from './ui';
-import { MONO } from '../theme';
+import { MONO } from '../tokens';
 
 function CustomerInsights({ tickets }: { tickets: Ticket[] }) {
   const { atos } = useTheme();
