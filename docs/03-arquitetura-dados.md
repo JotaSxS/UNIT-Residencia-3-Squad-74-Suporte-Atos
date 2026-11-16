@@ -14,7 +14,7 @@ Fluxo: Portal Atos Capital → API Chamados → PostgreSQL → webhooks → Port
 - **GrupoEmpresa** (cod, nome, tipo MATRIZ/FILIAL, criadoEm): auto `grupoPai/filiais`; `eMatriz()`, `eFilial()`, `obterGrupoPai()`, `adicionarFilial()`.
 - **Chamado** (cod, codigoPublico, produto, categoria, prioridade, status, título, descrição, slaPrazos, aguardandoDesde, datas): `reativar()`, `fecharPorInatividade()`, `estaEstouradoSLA()`, `atribuirAgente()`, `alterarStatus()`.
 - **Interacao** (cod, tipo PUBLICA/INTERNA, mensagem, criadoEm): `eNotaInterna()`, `possuiAnexos()`, `anexarArquivos()`.
-- **Anexo** (cod, nome, caminho, tamanhoBytes, tipoMime, criadoEm): valida extensão/tamanho/vínculo.
+- **Anexo** (cod, nome, caminho, tamanhoBytes, tipoMime): valida extensão/tamanho/vínculo.
 - **SlaConfig** (cod, produto, categoria, prioridade, tempoRespostaMin/ResolucaoMin, ativo): `atendeRegra()`, `calcularPrazo*()`, `estaAtivo()`.
 - **LogAuditoria** (cod, acao, campo, anterior/novo, criadoEm): `registrarAlteracao()`, etc.
 
@@ -30,7 +30,7 @@ Sequência abertura/atendimento: Cliente → Portal (JWT+grupo) → API (valida 
 
 Pacotes Governança, Acesso, Atendimento, Enumerações. Conforme modelo lógico §4.8 + scripts versionados.
 
-Leitura: Cliente (Usuario 0..*) abre Chamados; Agente (0..1) atende; Chamado 1—0..* Interacao; Chamado/Interacao 1—0..* Anexo; Usuario 0..*—0..1 GrupoEmpresa (matriz/filial); Chamado 0..*—1 SlaConfig; Chamado 1—0..* LogAuditoria. Enums: Prioridade (BAIXA/MEDIA/ALTA/CRITICA), TipoGrupo (MATRIZ/FILIAL), PapelUsuario (CLIENTE/AGENTE/SUPERVISOR/ADMIN), StatusChamado (FECHADO/ABERTO/EM_ANDAMENTO/AGUARDANDO_CLIENTE/RESOLVIDO), TipoInteracao (PUBLICA/INTERNA).
+Leitura: Cliente (Usuario 0.._) abre Chamados; Agente (0..1) atende; Chamado 1—0.._ Interacao; Chamado/Interacao 1—0.._ Anexo; Usuario 0.._—0..1 GrupoEmpresa (matriz/filial); Chamado 0.._—1 SlaConfig; Chamado 1—0.._ LogAuditoria. Enums: Prioridade (BAIXA/MEDIA/ALTA/URGENTE), TipoGrupo (MATRIZ/FILIAL), PapelUsuario (CLIENTE/AGENTE/SUPERVISOR/ADMIN), StatusChamado (FECHADO/ABERTO/EM_ANDAMENTO/AGUARDANDO_CLIENTE/RESOLVIDO), TipoInteracao (PUBLICA/INTERNA).
 
 Figura 2 – Diagrama de Classes da Plataforma de Suporte (pacotes Governança, Acesso, Atendimento e Enumerações).
 
@@ -54,130 +54,233 @@ Mínimo: Portal, React, API .NET, PostgreSQL, JWT, webhooks, n8n. Dependências:
 
 ## 4.7 Modelo de Dados
 
+> Atualizado conforme o código-fonte (entidades do `SupportAtos.Domain`, configurações do EF Core e migrations `InitialCreate`, `AddPortalExternalId` e `AlinharAoSqlOficial`). O banco é PostgreSQL e o esquema é criado e versionado pelas migrations do .NET.
+
 ### 4.7.1 Lógico
 
-Deriva de Figura 2 + TR: Usuario, GrupoEmpresa (grupo_pai), Chamado (usuario_id, grupo_empresa_id, agente_id, sla_config_id, codigo_publico único, status, prioridade, prazos), Interacao (chamado_id, autor_id, tipo), Anexo (chamado_id, interacao_id opcional), LogAuditoria (chamado_id, usuario_id, ação, campo/valores), SlaConfig única (produto, categoria, prioridade).
+O modelo tem **8 tabelas**:
 
-### 4.7.2 Físico (PostgreSQL + .NET migrations)
+- **grupo_empresa**: matriz ou filial, com autorrelacionamento (`grupo_pai_id`) e código externo vindo do portal (`codigo_externo`, único).
+- **usuario**: pertence a um grupo empresa; tem papel e código externo do portal (`codigo_externo`, único). O e-mail é único.
+- **sla_config**: prazos de resposta e resolução, únicos por (produto, categoria, prioridade).
+- **chamado**: aberto por um usuário (`usuario_id`), atendido por um agente opcional (`agente_id`), vinculado a um grupo empresa e a uma regra de SLA. O `codigo_publico` é único.
+- **interacao**: mensagem de um chamado, pública ou nota interna, escrita por um autor (`autor_id`).
+- **anexo**: arquivo de um chamado, opcionalmente ligado a uma interação.
+- **log_auditoria**: trilha de alterações do chamado (ação, campo, valor anterior e novo).
+- **provisionamento_audit**: registro da sincronização usuário/grupo vinda do portal (RF10). Não tem chave estrangeira; guarda os códigos externos como texto.
 
-Scripts 1–6 já gerados. BIGSERIAL PK, FKs, UNIQUE, índices, defaults.
+Os campos de papel, status, prioridade e tipo de interação são gravados como **texto** (`varchar`), com o nome do valor do enum do C# (por exemplo `EmAndamento`, `NotaInterna`).
 
-```sql
--- Script 1 — grupo_empresa
-CREATE TABLE public.grupo_empresa (
-  id BIGSERIAL NOT NULL,
-  nome VARCHAR(150) NOT NULL,
-  tipo VARCHAR(20) DEFAULT 'matriz',
-  grupo_pai_id BIGINT DEFAULT NULL,
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  CONSTRAINT grupo_empresa_ibfk_1 FOREIGN KEY (grupo_pai_id)
-    REFERENCES public.grupo_empresa (id)
-);
+### 4.7.2 Diagrama Entidade-Relacionamento
 
--- Script 2 — usuario
-CREATE TABLE public.usuario (
-  id BIGSERIAL NOT NULL,
-  nome VARCHAR(150) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  grupo_empresa_id BIGINT NOT NULL,
-  papel VARCHAR(20) NOT NULL DEFAULT 'cliente',
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em TIMESTAMP DEFAULT NULL,
-  PRIMARY KEY (id),
-  CONSTRAINT email UNIQUE (email),
-  CONSTRAINT usuario_ibfk_1 FOREIGN KEY (grupo_empresa_id)
-    REFERENCES public.grupo_empresa (id)
-);
+```mermaid
+erDiagram
+    GRUPO_EMPRESA |o--o{ GRUPO_EMPRESA : "matriz tem filiais"
+    GRUPO_EMPRESA ||--o{ USUARIO : "possui"
+    GRUPO_EMPRESA ||--o{ CHAMADO : "origem"
+    USUARIO ||--o{ CHAMADO : "abre"
+    USUARIO |o--o{ CHAMADO : "atende como agente"
+    SLA_CONFIG ||--o{ CHAMADO : "define prazos"
+    CHAMADO ||--o{ INTERACAO : "tem"
+    USUARIO ||--o{ INTERACAO : "escreve"
+    CHAMADO ||--o{ ANEXO : "tem"
+    INTERACAO |o--o{ ANEXO : "pode ter"
+    CHAMADO ||--o{ LOG_AUDITORIA : "gera"
+    USUARIO |o--o{ LOG_AUDITORIA : "executa"
 
--- Script 3 — sla_config
-CREATE TABLE public.sla_config (
-  id BIGSERIAL NOT NULL,
-  produto VARCHAR(100) NOT NULL,
-  categoria VARCHAR(100) NOT NULL,
-  prioridade VARCHAR(20) NOT NULL,
-  tempo_resposta_min INTEGER NOT NULL,
-  tempo_resolucao_min INTEGER NOT NULL,
-  ativo BOOLEAN DEFAULT TRUE,
-  PRIMARY KEY (id),
-  CONSTRAINT uq_sla_prod_cat_prio UNIQUE (produto, categoria, prioridade)
-);
-
--- Script 3b — chamado
-CREATE TABLE public.chamado (
-  id BIGSERIAL NOT NULL,
-  codigo_publico VARCHAR(20) NOT NULL,
-  usuario_id BIGINT NOT NULL,
-  grupo_empresa_id BIGINT NOT NULL,
-  agente_id BIGINT DEFAULT NULL,
-  sla_config_id BIGINT DEFAULT NULL,
-  produto VARCHAR(100) NOT NULL,
-  categoria VARCHAR(100) NOT NULL,
-  prioridade VARCHAR(20) NOT NULL,
-  status VARCHAR(30) NOT NULL DEFAULT 'aberto',
-  titulo VARCHAR(200) NOT NULL,
-  descricao TEXT NOT NULL,
-  sla_prazo_resposta TIMESTAMP DEFAULT NULL,
-  sla_prazo_resolucao TIMESTAMP DEFAULT NULL,
-  aguardando_desde TIMESTAMP DEFAULT NULL,
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  atualizado_em TIMESTAMP DEFAULT NULL,
-  fechado_em TIMESTAMP DEFAULT NULL,
-  PRIMARY KEY (id),
-  CONSTRAINT codigo_publico UNIQUE (codigo_publico),
-  CONSTRAINT chamado_ibfk_1 FOREIGN KEY (usuario_id) REFERENCES public.usuario (id),
-  CONSTRAINT chamado_ibfk_2 FOREIGN KEY (grupo_empresa_id) REFERENCES public.grupo_empresa (id),
-  CONSTRAINT chamado_ibfk_3 FOREIGN KEY (agente_id) REFERENCES public.usuario (id),
-  CONSTRAINT chamado_ibfk_4 FOREIGN KEY (sla_config_id) REFERENCES public.sla_config (id)
-);
-
--- Script 4 — interacao
-CREATE TABLE public.interacao (
-  id BIGSERIAL NOT NULL,
-  chamado_id BIGINT NOT NULL,
-  autor_id BIGINT NOT NULL,
-  tipo VARCHAR(20) NOT NULL,
-  mensagem TEXT NOT NULL,
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  CONSTRAINT interacao_ibfk_1 FOREIGN KEY (chamado_id) REFERENCES public.chamado (id),
-  CONSTRAINT interacao_ibfk_2 FOREIGN KEY (autor_id) REFERENCES public.usuario (id)
-);
-
--- Script 5 — anexo
-CREATE TABLE public.anexo (
-  id BIGSERIAL NOT NULL,
-  interacao_id BIGINT DEFAULT NULL,
-  chamado_id BIGINT NOT NULL,
-  nome_arquivo VARCHAR(255) NOT NULL,
-  caminho VARCHAR(500) NOT NULL,
-  tamanho_bytes INTEGER DEFAULT NULL,
-  tipo_mime VARCHAR(100) DEFAULT NULL,
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  CONSTRAINT anexo_ibfk_1 FOREIGN KEY (interacao_id) REFERENCES public.interacao (id),
-  CONSTRAINT anexo_ibfk_2 FOREIGN KEY (chamado_id) REFERENCES public.chamado (id)
-);
-
--- Script 6 — log_auditoria
-CREATE TABLE public.log_auditoria (
-  id BIGSERIAL NOT NULL,
-  chamado_id BIGINT NOT NULL,
-  usuario_id BIGINT DEFAULT NULL,
-  acao VARCHAR(50) NOT NULL,
-  campo_alterado VARCHAR(100) DEFAULT NULL,
-  valor_anterior TEXT,
-  valor_novo TEXT,
-  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  CONSTRAINT log_auditoria_ibfk_1 FOREIGN KEY (chamado_id) REFERENCES public.chamado (id),
-  CONSTRAINT log_auditoria_ibfk_2 FOREIGN KEY (usuario_id) REFERENCES public.usuario (id)
-);
+    GRUPO_EMPRESA {
+        int id PK
+        varchar nome
+        varchar tipo
+        int grupo_pai_id FK
+        varchar codigo_externo UK
+        timestamp criado_em
+    }
+    USUARIO {
+        int id PK
+        varchar nome
+        varchar email UK
+        int grupo_empresa_id FK
+        varchar papel
+        varchar codigo_externo UK
+        timestamp criado_em
+        timestamp atualizado_em
+    }
+    SLA_CONFIG {
+        int id PK
+        varchar produto
+        varchar categoria
+        varchar prioridade
+        int tempo_resposta_min
+        int tempo_resolucao_min
+        boolean ativo
+    }
+    CHAMADO {
+        int id PK
+        varchar codigo_publico UK
+        int usuario_id FK
+        int grupo_empresa_id FK
+        int agente_id FK
+        int sla_config_id FK
+        varchar produto
+        varchar categoria
+        varchar prioridade
+        varchar status
+        varchar titulo
+        text descricao
+        timestamp sla_prazo_resposta
+        timestamp sla_prazo_resolucao
+        timestamp aguardando_desde
+        timestamp criado_em
+        timestamp atualizado_em
+        timestamp fechado_em
+    }
+    INTERACAO {
+        int id PK
+        int chamado_id FK
+        int autor_id FK
+        varchar tipo
+        text mensagem
+        timestamp criado_em
+    }
+    ANEXO {
+        int id PK
+        int chamado_id FK
+        int interacao_id FK
+        varchar nome_arquivo
+        varchar caminho
+        int tamanho_bytes
+        varchar tipo_mime
+    }
+    LOG_AUDITORIA {
+        int id PK
+        int chamado_id FK
+        int usuario_id FK
+        varchar acao
+        varchar campo_alterado
+        text valor_anterior
+        text valor_novo
+        timestamp criado_em
+    }
+    PROVISIONAMENTO_AUDIT {
+        int id PK
+        varchar codigo_externo_usuario
+        varchar codigo_externo_grupo
+        varchar acao
+        timestamp data
+    }
 ```
 
-### 4.7.3 Dicionário
+Legenda: `PK` chave primária, `FK` chave estrangeira, `UK` valor único. Todas as chaves primárias são `integer` com geração automática (identity).
 
-Documenta grupo_empresa, usuario, sla_config, chamado, interacao, anexo, log_auditoria (campos, tipos, obrigatoriedade, restrições, finalidade) conforme DDL + enums. `[COMPLEMENTAR NA FINAL]`
+### 4.7.3 Dicionário de dados
+
+#### grupo_empresa
+
+| Campo          | Tipo               | Chave                 | Obrigatório | Observação                         |
+| -------------- | ------------------ | --------------------- | ----------- | ---------------------------------- |
+| id             | integer (identity) | PK                    | sim         |                                    |
+| nome           | varchar(150)       |                       | sim         |                                    |
+| tipo           | varchar(20)        |                       | sim         | Padrão `matriz` (matriz ou filial) |
+| grupo_pai_id   | integer            | FK → grupo_empresa.id | não         | Preenchido nas filiais             |
+| codigo_externo | varchar            | UK                    | não         | Identificador no portal            |
+| criado_em      | timestamp          |                       | sim         |                                    |
+
+#### usuario
+
+| Campo            | Tipo               | Chave                 | Obrigatório | Observação                                 |
+| ---------------- | ------------------ | --------------------- | ----------- | ------------------------------------------ |
+| id               | integer (identity) | PK                    | sim         |                                            |
+| nome             | varchar(150)       |                       | sim         |                                            |
+| email            | varchar(255)       | UK                    | sim         |                                            |
+| grupo_empresa_id | integer            | FK → grupo_empresa.id | sim         |                                            |
+| papel            | varchar(20)        |                       | sim         | `Cliente`, `Agente`, `Supervisor`, `Admin` |
+| codigo_externo   | varchar            | UK                    | não         | Identificador no portal                    |
+| criado_em        | timestamp          |                       | sim         |                                            |
+| atualizado_em    | timestamp          |                       | não         |                                            |
+
+#### sla_config
+
+| Campo               | Tipo               | Chave       | Obrigatório | Observação                             |
+| ------------------- | ------------------ | ----------- | ----------- | -------------------------------------- |
+| id                  | integer (identity) | PK          | sim         |                                        |
+| produto             | varchar(100)       | UK composta | sim         | Única junto com categoria e prioridade |
+| categoria           | varchar(100)       | UK composta | sim         |                                        |
+| prioridade          | varchar(20)        | UK composta | sim         | `Baixa`, `Media`, `Alta`, `Urgente`    |
+| tempo_resposta_min  | integer            |             | sim         | Em minutos                             |
+| tempo_resolucao_min | integer            |             | sim         | Em minutos                             |
+| ativo               | boolean            |             | sim         | Padrão `true`                          |
+
+#### chamado
+
+| Campo               | Tipo               | Chave                 | Obrigatório | Observação                                                           |
+| ------------------- | ------------------ | --------------------- | ----------- | -------------------------------------------------------------------- |
+| id                  | integer (identity) | PK                    | sim         |                                                                      |
+| codigo_publico      | varchar(20)        | UK                    | sim         | Código exibido ao cliente                                            |
+| usuario_id          | integer            | FK → usuario.id       | sim         | Quem abriu                                                           |
+| grupo_empresa_id    | integer            | FK → grupo_empresa.id | sim         |                                                                      |
+| agente_id           | integer            | FK → usuario.id       | não         | Agente responsável                                                   |
+| sla_config_id       | integer            | FK → sla_config.id    | sim         |                                                                      |
+| produto             | varchar(100)       |                       | sim         |                                                                      |
+| categoria           | varchar(100)       |                       | sim         |                                                                      |
+| prioridade          | varchar(20)        |                       | sim         | `Baixa`, `Media`, `Alta`, `Urgente`                                  |
+| status              | varchar(30)        |                       | sim         | `Aberto`, `EmAndamento`, `AguardandoCliente`, `Resolvido`, `Fechado` |
+| titulo              | varchar(200)       |                       | sim         | Obrigatório (RF05)                                                   |
+| descricao           | text               |                       | sim         |                                                                      |
+| sla_prazo_resposta  | timestamp          |                       | não         |                                                                      |
+| sla_prazo_resolucao | timestamp          |                       | sim         |                                                                      |
+| aguardando_desde    | timestamp          |                       | não         | Usado no encerramento por inatividade                                |
+| criado_em           | timestamp          |                       | sim         |                                                                      |
+| atualizado_em       | timestamp          |                       | não         |                                                                      |
+| fechado_em          | timestamp          |                       | não         |                                                                      |
+
+#### interacao
+
+| Campo      | Tipo               | Chave           | Obrigatório | Observação                 |
+| ---------- | ------------------ | --------------- | ----------- | -------------------------- |
+| id         | integer (identity) | PK              | sim         |                            |
+| chamado_id | integer            | FK → chamado.id | sim         |                            |
+| autor_id   | integer            | FK → usuario.id | sim         |                            |
+| tipo       | varchar(20)        |                 | sim         | `Publica` ou `NotaInterna` |
+| mensagem   | text               |                 | sim         |                            |
+| criado_em  | timestamp          |                 | sim         |                            |
+
+#### anexo
+
+| Campo         | Tipo               | Chave             | Obrigatório | Observação              |
+| ------------- | ------------------ | ----------------- | ----------- | ----------------------- |
+| id            | integer (identity) | PK                | sim         |                         |
+| chamado_id    | integer            | FK → chamado.id   | sim         | Exclusão em cascata     |
+| interacao_id  | integer            | FK → interacao.id | não         |                         |
+| nome_arquivo  | varchar(255)       |                   | sim         |                         |
+| caminho       | varchar(500)       |                   | sim         | Local ou URL do arquivo |
+| tamanho_bytes | integer            |                   | sim         |                         |
+| tipo_mime     | varchar(100)       |                   | não         |                         |
+
+#### log_auditoria
+
+| Campo          | Tipo               | Chave           | Obrigatório | Observação                |
+| -------------- | ------------------ | --------------- | ----------- | ------------------------- |
+| id             | integer (identity) | PK              | sim         |                           |
+| chamado_id     | integer            | FK → chamado.id | sim         |                           |
+| usuario_id     | integer            | FK → usuario.id | não         | Vazio em ações do sistema |
+| acao           | varchar(50)        |                 | sim         |                           |
+| campo_alterado | varchar(100)       |                 | não         |                           |
+| valor_anterior | text               |                 | não         |                           |
+| valor_novo     | text               |                 | não         |                           |
+| criado_em      | timestamp          |                 | sim         |                           |
+
+#### provisionamento_audit
+
+| Campo                  | Tipo               | Chave | Obrigatório | Observação |
+| ---------------------- | ------------------ | ----- | ----------- | ---------- |
+| id                     | integer (identity) | PK    | sim         |            |
+| codigo_externo_usuario | varchar            |       | sim         | Sem FK     |
+| codigo_externo_grupo   | varchar            |       | sim         | Sem FK     |
+| acao                   | varchar            |       | sim         |            |
+| data                   | timestamp          |       | sim         |            |
+
+Exclusão: todas as chaves estrangeiras usam `NO ACTION`, exceto `anexo.chamado_id`, que usa `CASCADE`.
 
 ## 4.8 Ambiente
 
