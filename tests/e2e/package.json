@@ -1,0 +1,19 @@
+{
+  "name": "atos-suporte-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:app": "npm --prefix ../../src/frontend install && npm --prefix ../../src/frontend run build",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:local": "npm run build:app && playwright test",
+    "test:e2e:deployed": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.9.1",
+    "typescript": "^5.9.3"
+  }
+}
