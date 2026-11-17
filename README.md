@@ -281,28 +281,6 @@ docs/
 
 A pasta `docs/` contem a visao geral, requisitos, arquitetura, casos de uso e detalhes de implementacao.
 
-## 8. Testes E2E (Playwright)
-
-A suite em `tests/e2e` cobre o ciclo de vida do chamado: **abrir → atribuir → responder → fechar**.
-
-```powershell
-cd tests\e2e
-npm ci
-npx playwright install chromium
-
-# build do frontend + preview local
-npm run test:e2e:local
-```
-
-Para rodar contra o ambiente publicado:
-
-```powershell
-$env:E2E_BASE_URL = 'https://cerulean-syrniki-02dc26.netlify.app'
-npm run test:e2e
-```
-
-O CI executa a suite pelo workflow `.github/workflows/e2e.yml` em pushes para `main`/`feature/**` e em pull requests para `main`, publicando o relatorio HTML e as evidencias como artefato. Detalhes em [`tests/e2e/README.md`](tests/e2e/README.md).
-
 ## Aviso final
 
 Este repositorio esta configurado para testes locais com autenticacao desativada. Antes de qualquer uso em producao, reative a autenticacao e revise todos os pontos marcados com `AUTH-DESATIVADA`.
