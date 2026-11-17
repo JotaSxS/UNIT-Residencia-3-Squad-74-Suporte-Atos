@@ -8,7 +8,7 @@ import { AccessTime, CheckCircleOutline, ConfirmationNumberOutlined } from '@mui
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CATEGORIES, EMPRESAS, PRODUCTS } from '../data';
 import { Eyebrow, isAtRisk, StatTile, visuallyHidden } from './ui';
-import { FONT, MONO } from '../theme';
+import { FONT, MONO } from '../tokens';
 import type { Role, Session, Ticket } from '../types';
 
 interface ReportsProps {

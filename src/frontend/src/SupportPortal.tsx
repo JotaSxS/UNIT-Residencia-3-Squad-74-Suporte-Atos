@@ -28,19 +28,14 @@ const PICKER_TEXT = {
   es: esES.components.MuiLocalizationProvider.defaultProps.localeText,
 };
 
-function TicketPage({ tickets, session, onUpdate }: {
-  tickets: Ticket[];
-  session: Session;
-  onUpdate: (ticket: Ticket) => void;
-}) {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const ticket = tickets.find((item) => item.id === id);
-  if (!ticket || (session.role === 'cliente' && ticket.empresa !== session.empresa)) {
-    return <Navigate to="/chamados" replace />;
-  }
-  return <TicketDetail key={ticket.id} ticket={ticket} role={session.role} user={session}
-    onBack={() => navigate('/chamados')} onUpdate={onUpdate} />;
+function ViewSkeleton() {
+  return (
+    <Box sx={{ maxWidth: 1152 }} aria-hidden>
+      <Skeleton width={220} height={34} />
+      <Skeleton width={320} height={22} sx={{ mb: 4 }} />
+      <Stack spacing={1.5}>{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} variant="rounded" height={48} />)}</Stack>
+    </Box>
+  );
 }
 
 interface TicketDetailRouteProps {
@@ -80,8 +75,6 @@ export default function SupportPortal() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>(seed);
-  const navigate = useNavigate();
-  const location = useLocation();
   const [loadingView, setLoadingView] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>(seedNotifications);
