@@ -43,11 +43,11 @@ export async function loginAsAgent(page: Page): Promise<void> {
   await page.goto('/');
 
   await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole('tab', { name: 'Equipe' }).click();
-
+  // O login atual é único: o papel de agente é inferido do e-mail (qualquer e-mail
+  // que não comece com "admin" é membro da equipe); não há mais abas de perfil.
   await page.getByLabel(/E-mail corporativo/).fill(AGENT.email);
   await page.getByLabel(/^Senha/).fill(AGENT.password);
-  await page.getByRole('button', { name: 'Entrar no portal' }).click();
+  await page.getByRole('button', { name: 'Entrar' }).click();
 
   await expect(page).toHaveURL(/\/chamados$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Fila de atendimento' })).toBeVisible();
