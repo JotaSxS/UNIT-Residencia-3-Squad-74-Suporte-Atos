@@ -155,9 +155,9 @@ export default function SupportPortal() {
               )}
             </Box>
           </Box>
+<<<<<<< HEAD
           {showNewTicket && session.role === 'cliente' && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
-        </Box>
-      )}
+======={showNewTicket && (role === 'cliente' || role === 'admin') && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
       {/* Notificações: sonner (toast.success / toast.error / toast.warning). */}
       <Toaster position="bottom-center" richColors closeButton theme={themeMode} toastOptions={{ style: { fontSize: 14 } }} />
       </LocalizationProvider>

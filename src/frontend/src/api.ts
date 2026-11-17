@@ -72,18 +72,22 @@ export interface NovoUsuarioInput {
 export class ApiError extends Error {
   readonly status: number;
   readonly errors: string[];
+  /** Campo da requisição que causou o erro (ex.: "titulo"), quando a API informa. */
+  readonly campo?: string;
 
-  constructor(message: string, status: number, errors: string[] = []) {
+  constructor(message: string, status: number, errors: string[] = [], campo?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = errors;
+    this.campo = campo;
   }
 }
 
 interface ProblemDetails {
   detail?: string;
   errors?: string[];
+  campo?: string;
 }
 
 export function getToken(): string {
@@ -133,7 +137,7 @@ async function request<T>(path: string, { method = 'GET', body }: { method?: str
     401: i18n.t('api.unauthorized'),
     403: i18n.t('api.forbidden'),
   } as Record<number, string>)[response.status] || i18n.t('api.generic');
-  throw new ApiError(problem?.detail || errors[0] || fallback, response.status, errors);
+  throw new ApiError(problem?.detail || errors[0] || fallback, response.status, errors, problem?.campo);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -220,7 +224,7 @@ export function chamadoDtoParaTicket(dto: ChamadoDto, user: Session): Ticket {
   const restante = Math.max(0, Math.round((prazo.valueOf() - Date.now()) / HORA));
   return {
     id: dto.codigoPublico,
-    empresa: user.empresa ?? '',
+    empresa: user.empresa ?? '—',
     contato: user.nome,
     produto: dto.produto,
     categoria: dto.categoria,

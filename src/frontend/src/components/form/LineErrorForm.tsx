@@ -17,9 +17,11 @@ export default function LineErrorForm({ error, params, id }: LineErrorFormProps)
   const { t } = useTranslation();
   const message = typeof error === 'string' ? error : error?.message;
   if (!message) return null;
+  // Erro devolvido pela API (type "server") já vem como texto pronto; os demais são chaves de tradução.
+  const isServerError = typeof error !== 'string' && error?.type === 'server';
   return (
     <FormHelperText id={id} error role="alert" sx={{ mx: 0, mt: 0.5 }}>
-      {t(message, params)}
+      {isServerError ? message : t(message, params)}
     </FormHelperText>
   );
 }

@@ -94,6 +94,7 @@ src/
 ├─ SupportPortal.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e rotas
 ├─ types.ts              # tipos de domínio (Ticket, Session, Role, ViewId...)
 ├─ api.ts                # cliente HTTP da API + tipos dos DTOs (chamados, usuários, grupos)
+├─ auth.ts               # papel da conta no login simulado (admin / equipe)
 ├─ dates.ts              # dayjs: formatos DD/MM/YYYY e leitura de datas da API
 ├─ notify.ts             # notifyApiError (sonner)
 ├─ theme.ts              # tokens + tema MUI (claro/escuro), com a extensão de tipo `theme.atos`
@@ -101,7 +102,7 @@ src/
 ├─ i18n/                 # configuração do i18next e locales pt.ts / en.ts / es.ts
 └─ components/
    ├─ form/              # LineErrorForm e FormTextField (react-hook-form)
-   ├─ Login.tsx          # vitrine do produto + cartão de acesso (Cliente / Equipe / Administrador)
+   ├─ Login.tsx          # tela de login única
    ├─ Layout.tsx         # Sidebar (Drawer) e TopBar (AppBar, notificações)
    ├─ LanguageSwitcher.tsx
    ├─ TicketList.tsx     # fila / "Meus chamados", filtros (inclusive por data), modal de novo chamado
@@ -114,16 +115,28 @@ src/
 A logo está em `public/` (`atos-capital-logo.png` e a versão branca para fundos escuros).
 Se receber um arquivo novo da marca, remova o fundo branco e gere a versão branca antes de trocar.
 
-## Papéis
+## Login único e papéis
 
-- **Administrador** (aba "Administrador" no login): vê **Fila de atendimento**, **Relatórios** e **Cadastro de usuários**
-  (`POST /api/usuarios`, lista em `GET /api/usuarios?grupoEmpresaId=` e grupos em `GET /api/grupos-empresa`), para
-  cadastrar clientes e demais perfis. O perfil real é validado pela API a partir do token (papel `Admin`); a tela não
-  substitui a autorização do servidor.
-- **Cliente** (login "Atos Capital ID", SSO): vê só os chamados da própria empresa, abre
-  novos chamados e acompanha o andamento.
-- **Agente** (e-mail e senha): vê toda a fila, assume e repassa chamados, usa notas internas.
-  Não abre chamado.
+Há **uma única tela de login** (e-mail corporativo + senha) e **dois tipos de conta**; o perfil vem da conta, não de uma aba:
+
+- **Administrador:** vê tudo — Fila de atendimento, Relatórios, **Cadastro de usuários** (`POST /api/usuarios`, lista em
+  `GET /api/usuarios?grupoEmpresaId=`, grupos em `GET /api/grupos-empresa`) e também abre chamados.
+- **Membro da equipe (agente):** Fila, detalhe do chamado (assumir, repassar, notas internas) e Relatórios. Não vê o cadastro de usuários.
+
+Enquanto o login é simulado (`src/auth.ts`): e-mail que **começa com "admin"** (ex.: `admin@atoscapital.com`) entra como administrador;
+qualquer outro (ex.: `ana.souza@atoscapital.com`) entra como equipe. Com o SSO o papel virá do token. A autorização real é sempre da API
+(papel no token); esconder uma tela no front não protege nada sozinho.
+
+O código ainda tem os ramos da visão de cliente (`role === 'cliente'`), mas nenhum login leva a eles; podem ser removidos quando a equipe confirmar.
+
+## Título obrigatório na abertura de chamado
+
+- **Front** (`NewTicketModal`): Título é obrigatório (asterisco vermelho, erro sob o campo via `LineErrorForm`, até 200 caracteres).
+- **API** (`POST /api/chamados`): sem título (ausente, nulo, vazio ou só espaços) responde **400** com `{ detail, errors, campo: "titulo" }`;
+  o domínio (`Chamado.Criar`) também recusa título vazio e **não troca mais pela categoria**. `CriarChamadoInput.Titulo` não é mais opcional.
+  O front mostra a mensagem da API **sob o campo Título** (erros `type: "server"` aparecem como vieram, sem tradução) e não fecha o formulário.
+- **Testes:** front — `npm test` (`src/components/NewTicketModal.test.tsx`, `src/auth.test.ts`); backend — `dotnet test`
+  (`CriarChamadoUseCaseTests` e `SupportAtosApiTests.CriarChamado_SemTitulo_DeveRetornar400IndicandoOCampoTitulo`).
 
 ## O que ainda é só interface
 
