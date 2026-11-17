@@ -2,6 +2,8 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using SupportAtos.Api.Authentication;
 using SupportAtos.Api.Middleware;
@@ -91,7 +93,11 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty,
+        name: "database",
+        tags: new[] { "ready" });
 
 var origensFrontend = builder.Configuration.GetSection("Cors:AllowedOrigins").GetChildren()
     .Select(origem => origem.Value)
@@ -177,6 +183,14 @@ builder.Services.AddSingleton<ISecurityRateLimiter, SecurityRateLimiter>();
 
 var app = builder.Build();
 
+// Executar migrations automaticamente no startup (produção + Docker/Render)
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<SupportAtos.Infrastructure.Persistence.SupportAtosDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<SecurityRateLimitMiddleware>();
@@ -231,7 +245,29 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<PortalUserContextMiddleware>();
 
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+}).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                duration = e.Value.Duration.TotalMilliseconds
+            })
+        });
+        await context.Response.WriteAsync(result);
+    }
+}).AllowAnonymous();
 app.MapControllers();
 
 app.Run();
