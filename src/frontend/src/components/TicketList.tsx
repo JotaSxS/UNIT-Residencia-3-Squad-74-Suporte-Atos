@@ -18,7 +18,7 @@ import {
   FileDownloadOutlined, HeadsetMicOutlined, InboxOutlined, Refresh, Search, Tune,
 } from '@mui/icons-material';
 import { PRODUCTS, STATUS } from '../data';
-import { chamadoDtoParaTicket, criarChamado, listarSlaCategorias, TITULO_MAX } from '../api';
+import { ApiError, chamadoDtoParaTicket, criarChamado, listarSlaCategorias, TITULO_MAX } from '../api';
 import type { SlaCategoriaDto } from '../api';
 import { DATE_FORMAT, dayjs, formatDateTime } from '../dates';
 import type { Dayjs } from '../dates';
@@ -121,7 +121,7 @@ export function NewTicketModal({ user, onClose, onCreate }: NewTicketModalProps)
   const [carregando, setCarregando] = useState(true);
   const [erroOpcoes, setErroOpcoes] = useState(false);
 
-  const { control, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm<NewTicketForm>({
+  const { control, handleSubmit, setError, setValue, watch, formState: { isSubmitting } } = useForm<NewTicketForm>({
     resolver: yupResolver(newTicketSchema),
     mode: 'onTouched',
     defaultValues: { titulo: '', produto: PRODUCT_NONE, categoria: '', descricao: '' },
@@ -152,6 +152,11 @@ export function NewTicketModal({ user, onClose, onCreate }: NewTicketModalProps)
       toast.success(t('newTicket.success', { id: criado.codigoPublico }));
       onCreate(chamadoDtoParaTicket(criado, user));
     } catch (err) {
+      // A API recusou o título (400 com campo "titulo"): mostra a mensagem dela sob o campo, sem fechar o formulário.
+      if (err instanceof ApiError && err.status === 400 && err.campo === 'titulo') {
+        setError('titulo', { type: 'server', message: err.message }, { shouldFocus: true });
+        return;
+      }
       notifyApiError(err, t('newTicket.submitError'));
     }
   };
@@ -248,6 +253,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
   const riskCount = scoped.filter(isAtRisk).length;
   const visible = filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const isClient = role === 'cliente';
+  const canOpen = (isClient || role === 'admin') && Boolean(onNew); // administrador também abre chamados
 
   const activeFilters: ActiveFilter[] = [];
   if (status !== 'todos') activeFilters.push({ key: 'status', label: t(`status.${status}`), clear: () => setStatus('todos') });
@@ -269,7 +275,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
             {isClient ? t('tickets.subtitleClient') : t('tickets.subtitleTeam')}
           </Typography>
         </Box>
-        {isClient && onNew && <Button variant="contained" startIcon={<Add />} onClick={onNew}>{t('tickets.openNew')}</Button>}
+        {canOpen && <Button variant="contained" startIcon={<Add />} onClick={onNew}>{t('tickets.openNew')}</Button>}
       </Stack>
 
       <Box component="section" aria-label={t('tickets.statsRegion')} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 3 }}>
@@ -330,7 +336,7 @@ export default function TicketList({ tickets, role, user, onOpen, onNew }: Ticke
           <Typography color="text.disabled" mt={0.5}>
             {scoped.length === 0 ? (isClient ? t('tickets.emptyClientText') : t('tickets.emptyTeamText')) : t('tickets.notFoundText')}
           </Typography>
-          {scoped.length === 0 && isClient && onNew && <Button variant="contained" startIcon={<Add />} onClick={onNew} sx={{ mt: 2 }}>{t('tickets.openNew')}</Button>}
+          {scoped.length === 0 && canOpen && <Button variant="contained" startIcon={<Add />} onClick={onNew} sx={{ mt: 2 }}>{t('tickets.openNew')}</Button>}
           {scoped.length > 0 && <Button variant="outlined" sx={{ mt: 2 }} onClick={() => { setStatus('todos'); setProduto('todos'); setQ(''); setDateFrom(null); setDateTo(null); }}>{t('tickets.clearFilters')}</Button>}
         </Paper>
       ) : (

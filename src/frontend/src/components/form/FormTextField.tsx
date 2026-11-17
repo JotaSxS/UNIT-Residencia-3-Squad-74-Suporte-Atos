@@ -2,7 +2,7 @@
 // Para campos obrigatórios passe `required`: o asterisco vermelho fica no rótulo desde o início
 // (a validação não é o único aviso de obrigatoriedade).
 import React from 'react';
-import { Box, TextField } from '@mui/material';
+import { Box, FormLabel, TextField } from '@mui/material';
 import type { TextFieldProps } from '@mui/material';
 import { Controller } from 'react-hook-form';
 import type { Control, FieldValues, Path } from 'react-hook-form';
@@ -17,20 +17,31 @@ type FormTextFieldProps<T extends FieldValues> = BaseProps & {
   errorParams?: Record<string, unknown>;
   /** Chamado depois que o valor do formulário é atualizado (útil para campos dependentes). */
   onValueChange?: (value: string) => void;
+  /** Rótulo fixo acima do campo (em vez do rótulo flutuante do MUI); o asterisco vermelho de `required` continua. */
+  topLabel?: boolean;
 };
 
 export default function FormTextField<T extends FieldValues>({
-  name, control, errorParams, onValueChange, ...textFieldProps
+  name, control, errorParams, onValueChange, topLabel, ...textFieldProps
 }: FormTextFieldProps<T>) {
   const errorId = `${String(name)}-error`;
+  const inputId = textFieldProps.id ?? `field-${String(name)}`;
+  const { label, ...withoutLabel } = textFieldProps;
   return (
     <Controller
       name={name}
       control={control}
       render={({ field, fieldState }) => (
         <Box>
+          {topLabel && label && (
+            <FormLabel htmlFor={inputId} required={textFieldProps.required} error={Boolean(fieldState.error)}
+              sx={{ display: 'block', mb: 0.75, fontSize: 13, fontWeight: 700, color: 'text.secondary' }}>
+              {label}
+            </FormLabel>
+          )}
           <TextField
-            {...textFieldProps}
+            {...(topLabel ? withoutLabel : textFieldProps)}
+            id={inputId}
             name={field.name}
             value={field.value ?? ''}
             onChange={(e) => { field.onChange(e); onValueChange?.(e.target.value); }}
