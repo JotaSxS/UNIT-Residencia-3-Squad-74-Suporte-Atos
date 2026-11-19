@@ -51,10 +51,15 @@ public class CriarChamadoUseCase
 
         var codigoPublico = await GerarCodigoPublicoUnicoAsync(cancellationToken);
 
+        if (!usuarioAtual.GrupoEmpresaIdInterno.HasValue)
+        {
+            throw new ValidationException("O usuário autenticado não está vinculado a um grupo de empresa, necessário para criar um chamado.");
+        }
+
         var chamado = Chamado.Criar(
             codigoPublico,
             usuarioAtual.UsuarioIdInterno,
-            usuarioAtual.GrupoEmpresaIdInterno,
+            usuarioAtual.GrupoEmpresaIdInterno.Value,
             sla,
             produto,
             categoria,

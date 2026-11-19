@@ -45,6 +45,33 @@ public class FakeUsuarioRepository : IUsuarioRepository
         _usuarios.Add(usuario);
         return Task.CompletedTask;
     }
+
+    public Task IncrementarTentativasFalhasAsync(int usuarioId, CancellationToken cancellationToken = default)
+    {
+        var usuario = _usuarios.FirstOrDefault(u => u.Id == usuarioId);
+        if (usuario is not null && usuario.Credencial is not null)
+        {
+            usuario.Credencial.RegistrarFalha();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task IncrementarTentativasEFalharSeLimiteAsync(int usuarioId, int maxTentativas, int bloqueioMinutos, CancellationToken cancellationToken = default)
+    {
+        var usuario = _usuarios.FirstOrDefault(u => u.Id == usuarioId);
+        if (usuario is not null && usuario.Credencial is not null)
+        {
+            usuario.Credencial.RegistrarFalha();
+
+            if (usuario.Credencial.TentativasFalhas >= maxTentativas)
+            {
+                usuario.Credencial.Bloquear(DateTime.UtcNow.AddMinutes(bloqueioMinutos));
+            }
+        }
+
+        return Task.CompletedTask;
+    }
 }
 
 public class FakeGrupoEmpresaRepository : IGrupoEmpresaRepository

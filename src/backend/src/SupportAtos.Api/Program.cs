@@ -10,8 +10,13 @@ using SupportAtos.Api.Providers;
 using SupportAtos.Api.Security;
 using SupportAtos.Application;
 using SupportAtos.Application.Abstractions;
+using SupportAtos.Application.Options;
+using SupportAtos.Application.Ports;
+using SupportAtos.Application.Services;
 using SupportAtos.Domain.Enums;
 using SupportAtos.Infrastructure;
+using SupportAtos.Infrastructure.Repositories;
+using SupportAtos.Infrastructure.Security;
 using SupportAtos.Infrastructure.Webhooks;
 
 if (args.Contains("--generate-api-key"))
@@ -20,7 +25,14 @@ if (args.Contains("--generate-api-key"))
     return;
 }
 
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg != "--check-dev-auth").ToArray());
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg is not ("--check-dev-auth" or "--bootstrap-admin")).ToArray());
+
+if (args.Contains("--bootstrap-admin"))
+{
+    if (args.Length != 1) { Console.Error.WriteLine("Use somente --bootstrap-admin; os dados são solicitados no terminal."); Environment.ExitCode = 1; return; }
+    Environment.ExitCode = await BootstrapAdminCommand.ExecutarAsync(builder.Configuration);
+    return;
+}
 
 if (args.Contains("--check-dev-auth"))
 {
@@ -102,6 +114,8 @@ if (origensFrontend.Length == 0 && builder.Environment.IsDevelopment())
     origensFrontend = new[] { "http://localhost:5173" };
 }
 
+origensFrontend = origensFrontend.Select(o => CsrfProtectionMiddleware.ValidarOrigem(o!)).ToArray();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -110,13 +124,25 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins(origensFrontend!)
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials();
         }
     });
 });
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddOptions<AuthSettings>()
+    .Bind(builder.Configuration.GetSection(AuthSettings.SectionName))
+    .Validate(a => a.RefreshTokenCookieSameSite is "Strict" or "Lax" or "None", "Auth:RefreshTokenCookieSameSite invalido.")
+    .Validate(a => a.RefreshTokenCookieSecure || (builder.Environment.IsDevelopment() && a.RefreshTokenCookieSameSite != "None"),
+        "Cookie refresh exige Secure fora de Development; SameSite=None sempre exige Secure.")
+    .ValidateOnStart();
+builder.Services.AddScoped<IHashSenha, Argon2idHashSenha>();
+builder.Services.AddScoped<ITokenGerador, JwtTokenGerador>();
+builder.Services.AddScoped<IRefreshTokenGerador, RefreshTokenGerador>();
+builder.Services.AddScoped<ISessaoAutenticacaoRepository, SessaoAutenticacaoRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSsoAuthentication(builder.Configuration);
 builder.Services.AddAuthorization(options =>
 {
@@ -214,6 +240,10 @@ app.UseStatusCodePages(async statusCodeContext =>
 });
 
 app.UseCors("Frontend");
+
+// Protect login against login-CSRF as well as refresh/logout cookie operations.
+var caminhosCsrf = new[] { "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/ativar" };
+app.UseMiddleware<CsrfProtectionMiddleware>(origensFrontend, caminhosCsrf);
 
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
 {

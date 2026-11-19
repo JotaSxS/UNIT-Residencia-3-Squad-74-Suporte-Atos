@@ -25,11 +25,16 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
 
     private static readonly SemaphoreSlim MutexBanco = new(1, 1);
     private static bool _bancoPronto;
+    private static readonly object Inicializacao = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:DefaultConnection", ConexaoBanco);
+        builder.UseSetting("Cors:AllowedOrigins:0", "https://frontend.test");
+        builder.UseSetting("Auth:Issuer", TestTokenFactory.Issuer);
+        builder.UseSetting("Auth:Audience", TestTokenFactory.Audience);
+        builder.UseSetting("Auth:PrivateKeyPem", TestTokenFactory.ChavePrivadaPem);
         builder.UseSetting("Sso:Issuer", TestTokenFactory.Issuer);
         builder.UseSetting("Sso:Audience", TestTokenFactory.Audience);
         builder.UseSetting("Sso:PublicKeyPem", TestTokenFactory.ChavePublicaPem);
@@ -44,17 +49,20 @@ public class TestWebAppFactory : WebApplicationFactory<Program>
         using var escopo = host.Services.CreateScope();
         var dbContext = escopo.ServiceProvider.GetRequiredService<SupportAtosDbContext>();
         GarantirBancoAsync(dbContext).GetAwaiter().GetResult();
-        dbContext.Database.Migrate();
-
-        if (!dbContext.SlaCategorias.Any())
+        lock (Inicializacao)
         {
-            dbContext.SlaCategorias.AddRange(
-                SlaCategoria.Criar("Portal", "Login", Prioridade.Alta, 1, 4),
-                SlaCategoria.Criar("Portal", "Erro de sistema", Prioridade.Media, 2, 8),
-                SlaCategoria.Criar("Portal", "Dúvida", Prioridade.Baixa, 3, 24));
-        }
+            dbContext.Database.Migrate();
 
-        dbContext.SaveChanges();
+            if (!dbContext.SlaCategorias.Any())
+            {
+                dbContext.SlaCategorias.AddRange(
+                    SlaCategoria.Criar("Portal", "Login", Prioridade.Alta, 1, 4),
+                    SlaCategoria.Criar("Portal", "Erro de sistema", Prioridade.Media, 2, 8),
+                    SlaCategoria.Criar("Portal", "Dúvida", Prioridade.Baixa, 3, 24));
+            }
+
+            dbContext.SaveChanges();
+        }
 
         return host;
     }

@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<MudarStatusChamadoUseCase>();
         services.AddScoped<AtribuirAgenteUseCase>();
         services.AddScoped<CadastrarUsuarioUseCase>();
+        services.AddScoped<FuncionarioAutenticacaoService>();
         services.AddScoped<ConsultarUsuarioUseCase>();
         services.AddScoped<ListarUsuariosPorGrupoUseCase>();
 

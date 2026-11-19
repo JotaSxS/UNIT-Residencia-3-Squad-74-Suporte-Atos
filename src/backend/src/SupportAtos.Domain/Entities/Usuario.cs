@@ -13,7 +13,7 @@ public partial class Usuario
 
     public string Email { get; private set; } = string.Empty;
 
-    public int GrupoEmpresaId { get; private set; }
+    public int? GrupoEmpresaId { get; private set; }
 
     public GrupoEmpresa? GrupoEmpresa { get; private set; }
 
@@ -22,6 +22,10 @@ public partial class Usuario
     public DateTime CriadoEm { get; private set; } = DateTime.UtcNow;
 
     public DateTime? AtualizadoEm { get; private set; }
+
+    public UsuarioCredencial? Credencial { get; private set; }
+
+    public ICollection<SessaoAutenticacao> SessoesAutenticacao { get; private set; } = new List<SessaoAutenticacao>();
 
     public ICollection<Chamado> Chamados { get; private set; } = new List<Chamado>();
 
@@ -33,7 +37,7 @@ public partial class Usuario
     {
     }
 
-    private Usuario(string nome, string email, int grupoEmpresaId, PapelUsuario papel)
+    private Usuario(string nome, string email, int? grupoEmpresaId, PapelUsuario papel)
     {
         AlterarNome(nome);
         AlterarEmail(email);
@@ -41,11 +45,16 @@ public partial class Usuario
         Papel = papel;
     }
 
-    public static Usuario Criar(string nome, string email, int grupoEmpresaId, PapelUsuario papel)
+    public static Usuario Criar(string nome, string email, int? grupoEmpresaId, PapelUsuario papel)
     {
-        if (grupoEmpresaId <= 0)
+        if (papel == PapelUsuario.Cliente && (!grupoEmpresaId.HasValue || grupoEmpresaId.Value <= 0))
         {
-            throw new Exceptions.DomainException("O grupo de empresa é obrigatório.");
+            throw new Exceptions.DomainException("O grupo de empresa é obrigatório para clientes.");
+        }
+
+        if (papel is PapelUsuario.Admin or PapelUsuario.Supervisor or PapelUsuario.Agente)
+        {
+            // Funcionários internos podem estar sem grupo (atendimento centralizado).
         }
 
         return new Usuario(nome, email, grupoEmpresaId, papel);
@@ -78,6 +87,11 @@ public partial class Usuario
 
     public void AlterarPapel(PapelUsuario novoPapel)
     {
+        if (novoPapel == PapelUsuario.Cliente && (!GrupoEmpresaId.HasValue || GrupoEmpresaId.Value <= 0))
+        {
+            throw new Exceptions.DomainException("Não é possível definir o papel Cliente para um usuário sem grupo de empresa.");
+        }
+
         Papel = novoPapel;
         AtualizadoEm = DateTime.UtcNow;
     }
@@ -107,11 +121,11 @@ public partial class Usuario
         Id = id;
     }
 
-    public void AlterarGrupoEmpresa(int grupoEmpresaId)
+    public void AlterarGrupoEmpresa(int? grupoEmpresaId)
     {
-        if (grupoEmpresaId <= 0)
+        if (Papel == PapelUsuario.Cliente && (!grupoEmpresaId.HasValue || grupoEmpresaId.Value <= 0))
         {
-            throw new Exceptions.DomainException("O grupo de empresa é obrigatório.");
+            throw new Exceptions.DomainException("O grupo de empresa é obrigatório para clientes.");
         }
 
         GrupoEmpresaId = grupoEmpresaId;

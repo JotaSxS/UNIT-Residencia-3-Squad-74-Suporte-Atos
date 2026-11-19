@@ -6,6 +6,6 @@ public record UsuarioDto(
     int Id,
     string Nome,
     string Email,
-    int GrupoEmpresaId,
+    int? GrupoEmpresaId,
     string? GrupoEmpresaNome,
     PapelUsuario Papel);

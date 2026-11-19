@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using SupportAtos.Api.Options;
+using SupportAtos.Application.Options;
 using SupportAtos.Application.Abstractions;
 using SupportAtos.Application.Ports;
+using SupportAtos.Domain.Entities;
+using SupportAtos.Domain.Enums;
 
 namespace SupportAtos.Api.Authentication;
 
@@ -116,6 +118,113 @@ public static class AuthenticationSetup
                 },
                 OnTokenValidated = async context =>
                 {
+                    var tipoToken = context.Principal?.FindFirst("tipo")?.Value;
+
+                    if (tipoToken == "interno")
+                    {
+                        // Token interno (login próprio com e-mail+senha): não executar
+                        // UserProvisioningService. Validar no banco que o usuário
+                        // ainda existe, possui credencial ativa e papel autorizado.
+                        var usuarioRepository = context.HttpContext.RequestServices.GetRequiredService<IUsuarioRepository>();
+
+                        var sub = context.Principal?.FindFirst(sso.ClaimNames.Sub)?.Value
+                            ?? context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                        var email = context.Principal?.FindFirst(sso.ClaimNames.Email)?.Value
+                            ?? context.Principal?.FindFirst(ClaimTypes.Email)?.Value;
+                        var nome = context.Principal?.FindFirst(sso.ClaimNames.Nome)?.Value
+                            ?? context.Principal?.FindFirst(ClaimTypes.Name)?.Value;
+                        var papelStr = context.Principal?.FindFirst(sso.ClaimNames.Role)?.Value
+                            ?? context.Principal?.FindFirst(ClaimTypes.Role)?.Value;
+                        var grupoIdStr = context.Principal?.FindFirst(sso.ClaimNames.GrupoEmpresaId)?.Value;
+
+                        if (string.IsNullOrWhiteSpace(sub) || !int.TryParse(sub, out var usuarioIdInterno))
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: identificação do usuário ausente."));
+                            return;
+                        }
+
+                        var usuario = await usuarioRepository.GetByIdAsync(usuarioIdInterno, context.HttpContext.RequestAborted);
+                        if (usuario is null)
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: usuário não encontrado."));
+                            return;
+                        }
+
+                        if (usuario.Credencial is null || !usuario.Credencial.Ativo)
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: credencial de acesso não encontrada ou inativa."));
+                            return;
+                        }
+
+                        if (usuario.Credencial.EstaBloqueado())
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: conta bloqueada por tentativas falhas."));
+                            return;
+                        }
+
+                        if (usuario.Papel is not (PapelUsuario.Admin or PapelUsuario.Supervisor or PapelUsuario.Agente))
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: papel não autorizado."));
+                            return;
+                        }
+
+                        // Dados de autorização devem vir do banco, não do JWT antigo.
+                        // Isso garante que rebaixamento de papel ou alteração de grupo
+                        // revoguem acessos concedidos por tokens emitidos anteriormente.
+                        var papelAtual = usuario.Papel;
+                        var grupoAtual = usuario.GrupoEmpresaId;
+
+                        // Substitui a claim 'role' pelo papel atual consultado no banco,
+                        // garantindo que alterações de papel revoguem efetivamente acessos
+                        // concedidos por tokens emitidos anteriormente.
+                        if (context.Principal?.Identity is ClaimsIdentity identidadeInterna)
+                        {
+                            foreach (var claimCargo in identidadeInterna.FindAll(sso.ClaimNames.Role).ToList())
+                            {
+                                identidadeInterna.RemoveClaim(claimCargo);
+                            }
+
+                            foreach (var claim in identidadeInterna.FindAll(ClaimTypes.Role).ToList())
+                                identidadeInterna.RemoveClaim(claim);
+                            foreach (var claim in identidadeInterna.FindAll(sso.ClaimNames.GrupoEmpresaId).ToList())
+                                identidadeInterna.RemoveClaim(claim);
+                            if (grupoAtual.HasValue)
+                                identidadeInterna.AddClaim(new Claim(sso.ClaimNames.GrupoEmpresaId, grupoAtual.Value.ToString()));
+                            identidadeInterna.AddClaim(new Claim(sso.ClaimNames.Role, papelAtual.ToString()));
+                        }
+
+                        // Valida que o JWT antigo tem claims obrigatórias (formato),
+                        // mas a autorização usa os dados do banco.
+                        if (string.IsNullOrWhiteSpace(email))
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: e-mail ausente."));
+                            return;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(nome))
+                        {
+                            context.Fail(new SecurityTokenValidationException("Token interno inválido: nome ausente."));
+                            return;
+                        }
+
+                        var contextoInterno = new PortalUserContext(
+                            usuarioIdInterno,
+                            grupoAtual,
+                            sub,
+                            sub,
+                            email,
+                            nome,
+                            nome,
+                            papelAtual);
+
+                        context.HttpContext.Items[PortalUserContextItems.Chave] = contextoInterno;
+                        context.HttpContext.Items[PortalUserContextItems.ExpiracaoToken] =
+                            DateTime.SpecifyKind(context.SecurityToken.ValidTo, DateTimeKind.Utc);
+
+                        return;
+                    }
+
+                    // Token do portal (SSO): executar provisionamento automático.
                     var claimsPortal = PortalIdentityClaimsReader.Ler(context.Principal!, sso.ClaimNames);
                     var provisioning = context.HttpContext.RequestServices.GetRequiredService<IUserProvisioningService>();
 

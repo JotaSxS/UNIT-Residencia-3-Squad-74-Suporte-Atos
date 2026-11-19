@@ -8,7 +8,7 @@ namespace SupportAtos.Application.Abstractions;
 /// </summary>
 public record PortalUserContext(
     int UsuarioIdInterno,
-    int GrupoEmpresaIdInterno,
+    int? GrupoEmpresaIdInterno,
     string CodigoExternoUsuario,
     string CodigoExternoGrupo,
     string Email,

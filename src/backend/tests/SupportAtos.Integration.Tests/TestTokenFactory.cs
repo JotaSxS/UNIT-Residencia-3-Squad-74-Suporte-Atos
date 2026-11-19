@@ -36,6 +36,11 @@ public static class TestTokenFactory
         }
     }
 
+    public static string ChavePrivadaPem
+    {
+        get { lock (ChaveLock) { return Chave.ExportPkcs8PrivateKeyPem(); } }
+    }
+
     public static string CriarToken(
         string sub,
         string email,

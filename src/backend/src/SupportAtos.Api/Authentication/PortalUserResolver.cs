@@ -36,7 +36,7 @@ public class PortalUserResolver
         var grupo = await _grupos.GetByCodigoExternoAsync(codigoGrupo, cancellationToken)
             ?? throw new NotFoundException("Grupo do portal não encontrado.");
 
-        if (usuario.GrupoEmpresaId != grupo.Id)
+        if (usuario.GrupoEmpresaId.HasValue && usuario.GrupoEmpresaId.Value != grupo.Id)
         {
             throw new NotFoundException("Usuário não pertence ao grupo informado.");
         }

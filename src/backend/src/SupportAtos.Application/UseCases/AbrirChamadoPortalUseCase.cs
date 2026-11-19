@@ -71,7 +71,7 @@ public class AbrirChamadoPortalUseCase
         var contextoInterno = contextoExterno with
         {
             UsuarioIdInterno = provisionado.UsuarioIdInterno,
-            GrupoEmpresaIdInterno = provisionado.GrupoEmpresaIdInterno
+            GrupoEmpresaIdInterno = provisionado.GrupoEmpresaIdInterno!.Value
         };
 
         var chamado = await _criarChamado.Handle(

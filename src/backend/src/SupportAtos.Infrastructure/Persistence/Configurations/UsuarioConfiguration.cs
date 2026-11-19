@@ -55,5 +55,15 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             .WithMany(g => g.Usuarios)
             .HasForeignKey(u => u.GrupoEmpresaId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne(u => u.Credencial)
+            .WithOne(c => c.Usuario)
+            .HasForeignKey<UsuarioCredencial>(c => c.UsuarioId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(u => u.SessoesAutenticacao)
+            .WithOne(s => s.Usuario)
+            .HasForeignKey(s => s.UsuarioId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

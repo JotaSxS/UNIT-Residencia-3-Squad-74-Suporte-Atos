@@ -24,7 +24,12 @@ public class ListarUsuariosPorGrupoUseCase
             ? grupoEmpresaId
             : usuarioAtual.GrupoEmpresaIdInterno;
 
-        var usuarios = await _usuarioRepository.ListarPorGrupoEmpresaAsync(grupoPermitido, cancellationToken);
+        if (!grupoPermitido.HasValue)
+        {
+            return new List<UsuarioDto>();
+        }
+
+        var usuarios = await _usuarioRepository.ListarPorGrupoEmpresaAsync(grupoPermitido.Value, cancellationToken);
 
         return usuarios.Select(u => DtoMapper.ToDto(u)).ToList();
     }
