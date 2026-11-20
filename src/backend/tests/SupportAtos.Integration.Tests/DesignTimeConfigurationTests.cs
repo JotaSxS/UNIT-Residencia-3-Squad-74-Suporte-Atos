@@ -31,4 +31,29 @@ public class DesignTimeConfigurationTests
         Assert.Contains("DefaultConnection", exception.Message);
         Assert.Contains("Nenhuma conexão foi aberta", exception.Message);
     }
+
+    [Theory]
+    [InlineData(5433)]
+    [InlineData(5434)]
+    public void DevelopmentPolicyAcceptsDockerDestinationOnConfiguredPort(int port)
+    {
+        var connection = $"Host=127.0.0.1;Port={port};Database=supportatos;Username=admin;Password=synthetic";
+
+        var parsed = DevelopmentDatabaseConfiguration.ParseDockerConnection(connection, port);
+
+        Assert.Equal(port, parsed.Port);
+        Assert.Equal("supportatos", parsed.Database);
+    }
+
+    [Fact]
+    public void DevelopmentPolicyRejectsPortDifferentFromConfiguredPort()
+    {
+        const string connection = "Host=127.0.0.1;Port=5433;Database=supportatos;Username=admin;Password=synthetic";
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            DevelopmentDatabaseConfiguration.ParseDockerConnection(connection, 5434));
+
+        Assert.Contains("127.0.0.1:5434", exception.Message);
+        Assert.DoesNotContain("synthetic", exception.Message);
+    }
 }

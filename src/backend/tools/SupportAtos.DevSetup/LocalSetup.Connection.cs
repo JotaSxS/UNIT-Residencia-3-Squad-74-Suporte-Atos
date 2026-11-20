@@ -5,6 +5,7 @@ using System.Security.AccessControl;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.UserSecrets;
 using Npgsql;
+using SupportAtos.Api;
 
 namespace SupportAtos.DevSetup;
 
@@ -29,6 +30,7 @@ internal sealed partial class LocalSetup
             || !string.Equals(Path.GetDirectoryName(Path.GetFullPath(ticket)), sessions, StringComparison.OrdinalIgnoreCase))
             throw new SetupFailure("Canal privado de sessao ausente. Execute setup.ps1/start.ps1, nao este comando diretamente.");
         var config = Configuration();
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
         var originalBytes = File.Exists(SecretsPath) ? await File.ReadAllBytesAsync(SecretsPath) : null;
         var original = originalBytes is null ? null : Encoding.UTF8.GetString(originalBytes).TrimStart('\uFEFF');
         var stored = ConnectionConfiguration.StoredConnection(original);
@@ -48,7 +50,7 @@ internal sealed partial class LocalSetup
 
         var selected = ConnectionConfiguration.IsDocker(stored) ? stored
             : ConnectionConfiguration.IsDocker(effective) ? effective : null;
-        if (!configure && selected is null) throw new SetupFailure("Docker ainda nao configurado. Execute setup.ps1 e confirme a troca; nenhuma conexao Windows sera utilizada.");
+        if (!configure && selected is null) throw new SetupFailure($"Docker ainda nao configurado para 127.0.0.1:{port}. Execute setup.ps1 e confirme a troca; nenhuma conexao Windows sera utilizada.");
 
         var replacingSecrets = configure && (selected is null || stored != selected);
         var conflictingSession = environments["Process"].Any(pair => pair.Value != selected);
@@ -56,7 +58,7 @@ internal sealed partial class LocalSetup
             .Any(pair => !ConnectionConfiguration.IsDocker(pair.Value));
         if (replacingSecrets || conflictingSession || persistentLegacy)
         {
-            Console.WriteLine("Destino exclusivo: 127.0.0.1:5433/supportatos (admin). PostgreSQL Windows nao sera acessado ou modificado.");
+            Console.WriteLine($"Destino exclusivo: 127.0.0.1:{port}/supportatos (admin). PostgreSQL Windows nao sera acessado ou modificado.");
             Console.WriteLine("Backup DPAPI sera criado antes da substituicao. Variaveis permanentes nao serao alteradas; overrides dos filhos serao temporarios.");
             Confirm(configure ? "CONFIGURAR DOCKER supportatos" : "USAR DOCKER NESTA SESSAO",
                 configure ? "Autoriza salvar a conexao Docker nos User Secrets e substituir overrides de conexao nesta sessao?"
@@ -71,7 +73,7 @@ internal sealed partial class LocalSetup
                 throw new SetupFailure("Senhas vazias ou diferentes. Nenhum segredo foi substituido.");
             selected = new NpgsqlConnectionStringBuilder
             {
-                Host = "127.0.0.1", Port = 5433, Database = "supportatos", Username = "admin", Password = password
+                Host = "127.0.0.1", Port = port, Database = "supportatos", Username = "admin", Password = password
             }.ConnectionString;
         }
         // Canonical destination, preserving the password and explicit safe connection options.

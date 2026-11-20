@@ -43,7 +43,8 @@ function Get-ConnectionEnvironmentValues {
 function Get-ProcessConnectionEnvironment { return (Get-ConnectionEnvironmentValues 'Process') }
 
 function Get-ConnectionClassification {
-    param([string]$Value)
+    param([string]$Value, [int]$ExpectedPort = 0)
+    if ($ExpectedPort -le 0) { $ExpectedPort = Get-SupportAtosDbPort }
     if ([string]::IsNullOrWhiteSpace($Value)) { return 'ausente' }
     if ($Value.Contains('__SUA_SENHA__')) { return 'placeholder' }
     try {
@@ -53,7 +54,7 @@ function Get-ConnectionClassification {
         # Npgsql aliases are accepted by runtime; this diagnostic is conservative.
         if ($builder.ContainsKey('Host') -and $builder.ContainsKey('Port') -and $builder.ContainsKey('Database') -and
             $builder.ContainsKey('Username') -and $builder.ContainsKey('Password') -and
-            @('127.0.0.1', 'localhost') -contains [string]$builder['Host'] -and [int]$builder['Port'] -eq 5433 -and
+            @('127.0.0.1', 'localhost') -contains [string]$builder['Host'] -and [int]$builder['Port'] -eq $ExpectedPort -and
             [string]$builder['Database'] -eq 'supportatos' -and [string]$builder['Username'] -eq 'admin' -and
             -not [string]::IsNullOrWhiteSpace([string]$builder['Password']) -and
             (-not $builder.ContainsKey('Options') -or [string]::IsNullOrWhiteSpace([string]$builder['Options'])) -and
@@ -63,7 +64,10 @@ function Get-ConnectionClassification {
 }
 
 function Show-DevelopmentConnectionDiagnostics {
+    Initialize-SupportAtosDbPort
+    $dbPort = Get-SupportAtosDbPort
     Add-Type -AssemblyName System.Data
+    Write-Host "Porta Docker configurada: 127.0.0.1:$dbPort (SUPPORTATOS_DB_PORT)."
     $api = Join-Path $script:RepoRoot 'src/backend/src/SupportAtos.Api'
     $sources = @(
         @{ Label = 'appsettings.json'; Path = (Join-Path $api 'appsettings.json') },
@@ -109,11 +113,27 @@ function Show-DevelopmentConnectionDiagnostics {
         $metadata = [string](& docker inspect supportatos-db --format '{{.Config.Image}}|{{range .Mounts}}{{.Name}};{{end}}|{{.State.Status}}')
         if ($LASTEXITCODE -ne 0) { throw 'Falha ao inspecionar container; nenhum recurso foi modificado.' }
         $labels = (& docker inspect supportatos-db --format '{{json .Config.Labels}}') | ConvertFrom-Json
+        $bindings = (& docker inspect supportatos-db --format '{{json .HostConfig.PortBindings}}') | ConvertFrom-Json
         if ($LASTEXITCODE -ne 0 -or $metadata -notmatch '^postgres:17\|backend_supportatos-db-data;\|' -or
             $labels.'com.docker.compose.project' -ne 'backend') {
             Write-Host 'Docker existente diverge da identidade oficial; nenhuma recriacao sera realizada.' -ForegroundColor Yellow
             $divergent = $true
-        } else { Write-Host 'Docker existente: PostgreSQL 17 / backend_supportatos-db-data; preservado, sem recriacao.' }
+        } else {
+            $loopbackBinding = $false
+            if ($null -ne $bindings) {
+                foreach ($binding in @($bindings.PSObject.Properties | Where-Object Name -eq '5432/tcp')) {
+                    foreach ($entry in @($binding.Value)) {
+                        if ([string]$entry.HostIp -eq '127.0.0.1' -and [string]$entry.HostPort -eq [string]$dbPort) {
+                            $loopbackBinding = $true
+                        }
+                    }
+                }
+            }
+            if (-not $loopbackBinding) {
+                Write-Host "Docker existente nao publica em loopback 127.0.0.1:$dbPort. Bindings em 0.0.0.0, :: ou outros enderecos sao recusados; a mudanca exige recriacao autorizada preservando o volume." -ForegroundColor Yellow
+                $divergent = $true
+            } else { Write-Host "Docker existente: PostgreSQL 17 / backend_supportatos-db-data / 127.0.0.1:$dbPort; preservado, sem recriacao." }
+        }
     } else { Write-Host 'Docker: container ausente. O setup interativo podera preparar o Compose oficial sem apagar volumes existentes.' }
     if ($divergent -or -not $configured) {
         Write-Host 'PENDENTE: execute setup.ps1 para confirmar a conexao Docker, backup protegido e overrides temporarios. PostgreSQL Windows nao sera acessado.' -ForegroundColor Yellow
@@ -124,6 +144,7 @@ function Show-DevelopmentConnectionDiagnostics {
 
 function Use-DockerDevelopmentConnection {
     param([switch]$Configure)
+    Initialize-SupportAtosDbPort
     $privateRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'SupportAtos/setup-private'
     $ticket = Join-Path $privateRoot ('sessions/' + [guid]::NewGuid().ToString('N') + '.dpapi')
     $previousTicket = $env:SUPPORTATOS_SETUP_SESSION_FILE
@@ -135,7 +156,7 @@ function Use-DockerDevelopmentConnection {
             [System.IO.File]::ReadAllBytes($ticket), $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
         try { $connection = [System.Text.Encoding]::UTF8.GetString($bytes) }
         finally { [Array]::Clear($bytes, 0, $bytes.Length) }
-        if ((Get-ConnectionClassification $connection) -ne 'Docker oficial') { throw 'Canal de sessao nao contem o destino Docker oficial.' }
+        if ((Get-ConnectionClassification $connection) -ne 'Docker oficial') { throw "Canal de sessao nao contem o destino Docker configurado (127.0.0.1:$(Get-SupportAtosDbPort))." }
         foreach ($name in (Get-ProcessConnectionEnvironment).Keys) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
         [Environment]::SetEnvironmentVariable('ConnectionStrings__DefaultConnection', $connection, 'Process')
     } finally {

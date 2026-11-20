@@ -4,4 +4,7 @@
 # Backups/canais privados do setup ficam fora do checkout; protecao adicional.
 *.dpapi
 
+# Porta local do PostgreSQL Docker; cada maquina pode usar um valor diferente.
+.supportatos.local.env
+
 .vs/

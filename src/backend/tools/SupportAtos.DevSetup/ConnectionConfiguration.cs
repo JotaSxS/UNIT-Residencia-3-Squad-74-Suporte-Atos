@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
@@ -62,7 +63,7 @@ public static class ConnectionConfiguration
         return json.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public static bool ExistingContainer(JsonElement container)
+    public static bool ExistingContainer(JsonElement container, int expectedPort)
     {
         if (container.GetProperty("Config").GetProperty("Image").GetString() != "postgres:17"
             || !container.GetProperty("Mounts").EnumerateArray().Any(m =>
@@ -71,6 +72,24 @@ public static class ConnectionConfiguration
             || !container.GetProperty("Config").GetProperty("Labels").TryGetProperty("com.docker.compose.project", out var project)
             || project.GetString() != "backend")
             throw new SetupFailure("Container existente nao corresponde ao Compose/volume oficial. Nenhum container foi modificado.");
+
+        var expected = expectedPort.ToString(CultureInfo.InvariantCulture);
+        var published = container.GetProperty("HostConfig").TryGetProperty("PortBindings", out var bindings)
+            && bindings.ValueKind == JsonValueKind.Object
+            && bindings.TryGetProperty("5432/tcp", out var entries)
+            && entries.ValueKind == JsonValueKind.Array
+            ? entries.EnumerateArray()
+                .Where(entry =>
+                    entry.TryGetProperty("HostIp", out var hostIp) && hostIp.GetString() == "127.0.0.1"
+                    && entry.TryGetProperty("HostPort", out var hostPort) && hostPort.GetString() == expected)
+                .ToArray()
+            : [];
+        if (published.Length == 0)
+            throw new SetupFailure(
+                $"Container existente nao publica em loopback 127.0.0.1:{expectedPort}:5432. " +
+                "Bindings em 0.0.0.0, :: ou outros enderecos sao recusados. " +
+                "Ajuste .supportatos.local.env para a porta publicada ou recrie o container com autorizacao, " +
+                "preservando o volume backend_supportatos-db-data. Nenhum container foi modificado.");
         return container.GetProperty("State").GetProperty("Running").GetBoolean();
     }
 }

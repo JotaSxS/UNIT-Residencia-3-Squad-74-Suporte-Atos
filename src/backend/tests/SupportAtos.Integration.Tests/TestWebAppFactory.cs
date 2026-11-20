@@ -17,11 +17,12 @@ namespace SupportAtos.Integration.Tests;
 public class TestWebAppFactory : WebApplicationFactory<Program>
 {
     /// <summary>Override via variável de ambiente SUPPORTATOS_TEST_CONNECTION, se desejado.
-    /// O fallback aponta para o Postgres do docker-compose.yml raiz (porta 5433, usuário admin,
-    /// senha padrão do container). Nunca colocar credenciais reais aqui — esse arquivo é versionado.</summary>
+    /// O fallback aponta para o Postgres do docker-compose.yml oficial (porta configurada por
+    /// SUPPORTATOS_DB_PORT, padrão 5433, usuário admin, senha padrão do container).
+    /// Nunca colocar credenciais reais aqui — esse arquivo é versionado.</summary>
     public static readonly string ConexaoBanco =
         Environment.GetEnvironmentVariable("SUPPORTATOS_TEST_CONNECTION")
-        ?? "Host=localhost;Port=5433;Database=supportatos_test;Username=admin;Password=supportatos";
+        ?? $"Host=localhost;Port={Environment.GetEnvironmentVariable("SUPPORTATOS_DB_PORT") ?? "5433"};Database=supportatos_test;Username=admin;Password=supportatos";
 
     private static readonly SemaphoreSlim MutexBanco = new(1, 1);
     private static bool _bancoPronto;

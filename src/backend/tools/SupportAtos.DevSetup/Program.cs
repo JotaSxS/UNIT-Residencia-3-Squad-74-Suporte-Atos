@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
+using SupportAtos.Api;
 using SupportAtos.Infrastructure.Persistence;
 
 namespace SupportAtos.DevSetup;
@@ -99,19 +100,20 @@ internal sealed partial class LocalSetup(string root)
     private async Task PrepareConnection()
     {
         var config = Configuration();
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
         var value = config.GetConnectionString("DefaultConnection");
         if (!string.IsNullOrWhiteSpace(value) && !value.Contains("__SUA_SENHA__", StringComparison.Ordinal))
         {
             SetupSafety.LocalConnection(value);
-            Console.WriteLine("Conexao existente preservada: localhost:5433/supportatos (admin).");
+            Console.WriteLine($"Conexao existente preservada: localhost:{port}/supportatos (admin).");
             return;
         }
-        Console.WriteLine("Destino fixo: 127.0.0.1:5433 / supportatos / admin.");
+        Console.WriteLine($"Destino fixo: 127.0.0.1:{port} / supportatos / admin.");
         Console.WriteLine("Volume existente: informe a senha real. Volume novo: escolha uma senha exclusiva.");
         var password = ReadSecret("Senha PostgreSQL (sem eco): ");
         if (password.Length < 1 || password != ReadSecret("Confirme a senha: "))
             throw new SetupFailure("Senhas vazias ou diferentes. Execute novamente; nenhuma senha foi alterada no PostgreSQL.");
-        var connection = new NpgsqlConnectionStringBuilder { Host = "127.0.0.1", Port = 5433, Database = "supportatos", Username = "admin", Password = password };
+        var connection = new NpgsqlConnectionStringBuilder { Host = "127.0.0.1", Port = port, Database = "supportatos", Username = "admin", Password = password };
         await SaveMissing(new() { ["ConnectionStrings:DefaultConnection"] = connection.ConnectionString });
         Console.WriteLine("Conexao salva nos User Secrets da API; senha do banco nao foi alterada.");
     }
@@ -177,6 +179,7 @@ internal sealed partial class LocalSetup(string root)
     private async Task PrepareDocker(string? selectedConnection = null)
     {
         var connection = selectedConnection is null ? Connection() : SetupSafety.LocalConnection(selectedConnection);
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("COMPOSE_PROJECT_NAME"))
             && Environment.GetEnvironmentVariable("COMPOSE_PROJECT_NAME") != "backend")
             throw new SetupFailure("COMPOSE_PROJECT_NAME diferente de backend. Revise o override; o setup nao selecionara outro volume.");
@@ -189,17 +192,45 @@ internal sealed partial class LocalSetup(string root)
         {
             using var inspection = JsonDocument.Parse(await Run("docker", ["inspect", "supportatos-db"]));
             var container = inspection.RootElement[0];
-            if (ConnectionConfiguration.ExistingContainer(container))
+            if (ConnectionConfiguration.ExistingContainer(container, port))
             {
                 Console.WriteLine("Container PostgreSQL existente reutilizado, sem recriacao. Binding antigo pode permanecer ate atualizacao autorizada.");
                 return;
             }
             Confirm("INICIAR supportatos-db", "Container existente parado; iniciar sem recriar?");
         }
+        EnsureLoopbackPortAvailable(port);
         // Never recreate existing containers, even when their config differs.
         await Run("docker", ["compose", "-f", Compose, "up", "-d", "--wait", "--wait-timeout", "60", "--no-recreate", "supportatos-db"],
             environment: new() { ["POSTGRES_PASSWORD"] = connection.Password });
         Console.WriteLine("PostgreSQL preparado pelo Compose oficial, sem recriar containers existentes.");
+    }
+
+    private static void EnsureLoopbackPortAvailable(int port)
+    {
+        try
+        {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+        }
+        catch (System.Net.Sockets.SocketException)
+        {
+            throw new SetupFailure(
+                $"Porta 127.0.0.1:{port} ja esta em uso por outro processo. " +
+                "Escolha outra porta em .supportatos.local.env (SUPPORTATOS_DB_PORT) ou libere a porta; " +
+                "nenhum processo foi encerrado.");
+        }
+    }
+
+    private async Task EnsureOfficialContainerPort(int port)
+    {
+        var names = await Run("docker", ["ps", "-a", "--format", "{{.Names}}"]);
+        if (!names.Split('\n', StringSplitOptions.TrimEntries).Contains("supportatos-db"))
+            throw new SetupFailure("Container supportatos-db ausente. Execute setup.ps1; nenhuma conexao ao PostgreSQL Windows sera tentada.");
+        using var inspection = JsonDocument.Parse(await Run("docker", ["inspect", "supportatos-db"]));
+        if (!ConnectionConfiguration.ExistingContainer(inspection.RootElement[0], port))
+            throw new SetupFailure("Container supportatos-db esta parado. Inicie-o pelo setup.ps1; nenhuma conexao ao PostgreSQL Windows sera tentada.");
     }
 
     private SupportAtosDbContext Context(string connection)
@@ -207,6 +238,8 @@ internal sealed partial class LocalSetup(string root)
 
     private async Task VerifyDatabase(string connection)
     {
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
+        await EnsureOfficialContainerPort(port);
         await using var db = new NpgsqlConnection(connection);
         try { await db.OpenAsync(); }
         catch (PostgresException ex) when (ex.SqlState == "28P01")
@@ -219,7 +252,7 @@ internal sealed partial class LocalSetup(string root)
         }
         catch (NpgsqlException)
         {
-            throw new SetupFailure("Conexao PostgreSQL indisponivel. Confira Docker Desktop, container supportatos-db e porta 5433; nao pare o PostgreSQL Windows.");
+            throw new SetupFailure($"Conexao PostgreSQL indisponivel. Confira Docker Desktop, container supportatos-db e porta {port}; nao pare o PostgreSQL Windows.");
         }
         await using var command = new NpgsqlCommand("SELECT current_database(), current_user, current_setting('server_version_num')::int, system_identifier::text FROM pg_control_system()", db);
         await using var reader = await command.ExecuteReaderAsync();
@@ -233,23 +266,25 @@ internal sealed partial class LocalSetup(string root)
 
     private async Task DatabaseStatus(bool requireCurrent)
     {
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
         var connection = Connection().ConnectionString;
         await VerifyDatabase(connection);
         await using var context = Context(connection);
         var pending = (await context.Database.GetPendingMigrationsAsync()).ToArray();
-        Console.WriteLine($"Destino verificado: localhost:5433/supportatos (admin, PostgreSQL 17). Migrations pendentes: {pending.Length}.");
+        Console.WriteLine($"Destino verificado: localhost:{port}/supportatos (admin, PostgreSQL 17). Migrations pendentes: {pending.Length}.");
         if (requireCurrent && pending.Length != 0) throw new SetupFailure("Schema pendente. Execute setup.ps1 e autorize as migrations antes de iniciar.");
     }
 
     private async Task Migrate()
     {
+        var port = DevelopmentDatabaseConfiguration.ConfiguredPort;
         var connection = Connection().ConnectionString;
         await VerifyDatabase(connection);
         await using var context = Context(connection);
         var pending = (await context.Database.GetPendingMigrationsAsync()).ToArray();
         if (pending.Length == 0) { Console.WriteLine("Schema atualizado; nenhuma migration executada."); return; }
         Console.WriteLine($"Migrations pendentes: {pending.Length}. Confira backup em banco existente.");
-        Confirm("MIGRAR 127.0.0.1:5433/supportatos", "Aplicar migrations SOMENTE ao destino Docker verificado?");
+        Confirm($"MIGRAR 127.0.0.1:{port}/supportatos", "Aplicar migrations SOMENTE ao destino Docker verificado?");
         // Pin the exact verified connection in the child; no subsequent config drift.
         await Run("dotnet", ["tool", "run", "dotnet-ef", "--", "database", "update", "--configuration", "Release", "--no-build", "--project", Path.Combine(root, "src/backend/src/SupportAtos.Infrastructure"), "--startup-project", Api, "--", "--environment", "Development"],
             environment: new() { ["ConnectionStrings__DefaultConnection"] = connection, ["DOTNET_ENVIRONMENT"] = "Development", ["ASPNETCORE_ENVIRONMENT"] = "Development" });

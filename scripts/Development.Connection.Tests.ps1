@@ -2,7 +2,9 @@
 # Synthetic files and current-process environment only. Never calls Docker/database.
 . (Join-Path $PSScriptRoot 'Development.Common.ps1')
 Add-Type -AssemblyName System.Data
+$env:SUPPORTATOS_DB_PORT = '5433'
 $docker = 'Host=127.0.0.1;Port=5433;Database=supportatos;Username=admin;Password=synthetic-only'
+$dockerAlt = 'Host=127.0.0.1;Port=5434;Database=supportatos;Username=admin;Password=synthetic-only'
 $old = 'Host=localhost;Port=5432;Database=supportatos;Username=postgres;Password=old-only'
 $passed = 0
 foreach ($case in @(
@@ -14,6 +16,15 @@ foreach ($case in @(
     if ((Get-ConnectionClassification $case.Value) -ne $case.Expected) { throw 'Classificacao de conexao incorreta.' }
     $passed++
 }
+$env:SUPPORTATOS_DB_PORT = '5434'
+foreach ($case in @(
+    @{ Value = $dockerAlt; Expected = 'Docker oficial' },
+    @{ Value = $docker; Expected = 'legada/divergente' }
+)) {
+    if ((Get-ConnectionClassification $case.Value) -ne $case.Expected) { throw 'Classificacao da porta alternativa incorreta.' }
+    $passed++
+}
+$env:SUPPORTATOS_DB_PORT = '5433'
 foreach ($name in @('ConnectionStrings__DefaultConnection', 'ConnectionStrings:DefaultConnection', 'CUSTOMCONNSTR_DefaultConnection', 'ASPNETCORE_ConnectionStrings__DefaultConnection', 'DOTNET_ConnectionStrings__DefaultConnection')) {
     if (-not (Test-ConnectionEnvironmentName $name)) { throw 'Alias de ambiente nao detectado.' }
     $passed++
@@ -53,20 +64,32 @@ function docker {
     if ($args[0] -notin @('ps', 'inspect')) { throw 'Diagnostico tentou alterar Docker ou consultar banco.' }
     if ($args[0] -eq 'ps') { if ($script:ConnectionScenario -ne 'Clean') { 'supportatos-db' }; return }
     if ($args[3] -eq '{{json .Config.Labels}}') { '{"com.docker.compose.project":"backend"}'; return }
+    if ($args[3] -eq '{{json .HostConfig.PortBindings}}') {
+        '{"5432/tcp":[{"HostIp":"' + [string]$script:ContainerHostIp + '","HostPort":"' + [string]$script:ContainerPort + '"}]}'
+        return
+    }
     if ($script:ConnectionScenario -eq 'WrongVolume') { 'postgres:17|another-volume;|running' }
     else { 'postgres:17|backend_supportatos-db-data;|running' }
 }
 try {
     foreach ($case in @(
-        @{ Scenario = 'Legacy'; Expected = $false },
-        @{ Scenario = 'Clean'; Expected = $false },
-        @{ Scenario = 'Existing'; Expected = $true },
-        @{ Scenario = 'WrongVolume'; Expected = $false }
+        @{ Scenario = 'Legacy'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '127.0.0.1'; Connection = $old },
+        @{ Scenario = 'Clean'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '127.0.0.1'; Connection = $null },
+        @{ Scenario = 'Existing'; Expected = $true; Port = 5433; ContainerPort = 5433; ContainerHostIp = '127.0.0.1'; Connection = $docker },
+        @{ Scenario = 'ExistingAlt'; Expected = $true; Port = 5434; ContainerPort = 5434; ContainerHostIp = '127.0.0.1'; Connection = $dockerAlt },
+        @{ Scenario = 'WrongVolume'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '127.0.0.1'; Connection = $docker },
+        @{ Scenario = 'WrongPort'; Expected = $false; Port = 5434; ContainerPort = 5433; ContainerHostIp = '127.0.0.1'; Connection = $dockerAlt },
+        @{ Scenario = 'WildcardHost'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '0.0.0.0'; Connection = $docker },
+        @{ Scenario = 'Ipv6AnyHost'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '::'; Connection = $docker },
+        @{ Scenario = 'OtherHost'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = '10.0.0.5'; Connection = $docker },
+        @{ Scenario = 'EmptyHost'; Expected = $false; Port = 5433; ContainerPort = 5433; ContainerHostIp = ''; Connection = $docker }
     )) {
         $script:ConnectionScenario = $case.Scenario
+        $script:ContainerPort = $case.ContainerPort
+        $script:ContainerHostIp = $case.ContainerHostIp
+        $env:SUPPORTATOS_DB_PORT = [string]$case.Port
         if (Test-Path -LiteralPath $stored) { Remove-Item -LiteralPath $stored }
-        if ($case.Scenario -eq 'Legacy') { [IO.File]::WriteAllText($stored, (@{ 'ConnectionStrings:DefaultConnection' = $old } | ConvertTo-Json)) }
-        elseif ($case.Scenario -ne 'Clean') { [IO.File]::WriteAllText($stored, (@{ 'ConnectionStrings:DefaultConnection' = $docker } | ConvertTo-Json)) }
+        if ($null -ne $case.Connection) { [IO.File]::WriteAllText($stored, (@{ 'ConnectionStrings:DefaultConnection' = $case.Connection } | ConvertTo-Json)) }
         $before = if (Test-Path -LiteralPath $stored) { [IO.File]::ReadAllText($stored) } else { $null }
         $result = Show-DevelopmentConnectionDiagnostics 6>$null
         if ($result -ne $case.Expected) { throw "Diagnostico incorreto: $($case.Scenario)." }

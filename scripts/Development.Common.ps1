@@ -4,6 +4,40 @@ $ErrorActionPreference = 'Stop'
 $script:RepoRoot = Split-Path -Parent $PSScriptRoot
 $script:HelperProject = Join-Path $script:RepoRoot 'src/backend/tools/SupportAtos.DevSetup/SupportAtos.DevSetup.csproj'
 $script:HelperDll = Join-Path $script:RepoRoot 'src/backend/tools/SupportAtos.DevSetup/bin/Release/net10.0/SupportAtos.DevSetup.dll'
+$script:DefaultSupportAtosDbPort = 5433
+
+function Get-SupportAtosDbPort {
+    $raw = $env:SUPPORTATOS_DB_PORT
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $script:DefaultSupportAtosDbPort }
+    $port = 0
+    if (-not [int]::TryParse($raw.Trim(), [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
+        throw "SUPPORTATOS_DB_PORT invalida. Use um numero entre 1 e 65535 em .supportatos.local.env."
+    }
+    return $port
+}
+
+function Initialize-SupportAtosDbPort {
+    # .supportatos.local.env e a unica fonte local da porta HOST. O Compose recebe o
+    # mesmo valor pelo ambiente do processo; nao dependemos de .env auto-carregado.
+    $localFile = Join-Path $script:RepoRoot '.supportatos.local.env'
+    if (Test-Path -LiteralPath $localFile) {
+        foreach ($line in [System.IO.File]::ReadAllLines($localFile)) {
+            $text = $line.Trim().TrimStart([char]0xFEFF).Trim()
+            if ($text.Length -eq 0 -or $text.StartsWith('#')) { continue }
+            $pair = $text.Split('=', 2)
+            if ($pair.Count -ne 2) { throw 'Linha invalida em .supportatos.local.env. Use SUPPORTATOS_DB_PORT=<porta>.' }
+            if ($pair[0].Trim() -ne 'SUPPORTATOS_DB_PORT') { continue }
+            $filePort = $pair[1].Trim().Trim('"').Trim("'")
+            $environmentPort = $env:SUPPORTATOS_DB_PORT
+            if (-not [string]::IsNullOrWhiteSpace($environmentPort) -and $environmentPort.Trim() -ne $filePort) {
+                throw "SUPPORTATOS_DB_PORT=$($environmentPort.Trim()) difere de .supportatos.local.env ($filePort). Use uma unica fonte local para a porta."
+            }
+            $env:SUPPORTATOS_DB_PORT = $filePort
+        }
+    }
+    $null = Get-SupportAtosDbPort
+}
+
 . (Join-Path $PSScriptRoot 'Development.Connection.ps1')
 
 function Invoke-Checked {
@@ -62,6 +96,7 @@ function Test-DotnetCompatibility {
 }
 
 function Test-DevelopmentPrerequisites {
+    Initialize-SupportAtosDbPort
     $failures = [System.Collections.Generic.List[string]]::new()
     if ($env:OS -ne 'Windows_NT') { $failures.Add('Use Windows/PowerShell para este setup.') }
     foreach ($name in @('git', 'docker', 'dotnet', 'node', 'npm')) {

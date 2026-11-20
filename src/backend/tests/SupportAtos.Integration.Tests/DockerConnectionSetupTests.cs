@@ -68,15 +68,45 @@ public class DockerConnectionSetupTests
     [InlineData(false)]
     public void ExistingOfficialContainerIsRecognizedWithoutAnyDockerCommand(bool running)
     {
-        using var json = JsonDocument.Parse(Container("backend_supportatos-db-data", running));
-        Assert.Equal(running, ConnectionConfiguration.ExistingContainer(json.RootElement));
+        using var json = JsonDocument.Parse(Container("backend_supportatos-db-data", running, 5433));
+        Assert.Equal(running, ConnectionConfiguration.ExistingContainer(json.RootElement, 5433));
+    }
+
+    [Fact]
+    public void ExistingContainerOnAlternativePortIsRecognized()
+    {
+        using var json = JsonDocument.Parse(Container("backend_supportatos-db-data", true, 5434));
+        Assert.True(ConnectionConfiguration.ExistingContainer(json.RootElement, 5434));
+    }
+
+    [Fact]
+    public void RefusesContainerPublishedOnAnotherPortInsteadOfRecreatingIt()
+    {
+        using var json = JsonDocument.Parse(Container("backend_supportatos-db-data", true, 5433));
+        Assert.Throws<SetupFailure>(() => ConnectionConfiguration.ExistingContainer(json.RootElement, 5434));
+    }
+
+    [Theory]
+    [InlineData("0.0.0.0")]
+    [InlineData("::")]
+    [InlineData("10.0.0.5")]
+    [InlineData("localhost")]
+    [InlineData("")]
+    public void RefusesContainerPublishedOutsideExactLoopbackAddress(string hostIp)
+    {
+        using var json = JsonDocument.Parse(Container("backend_supportatos-db-data", true, 5433, hostIp));
+
+        var error = Assert.Throws<SetupFailure>(() =>
+            ConnectionConfiguration.ExistingContainer(json.RootElement, 5433));
+
+        Assert.Contains("loopback", error.Message);
     }
 
     [Fact]
     public void RefusesAnotherVolumeInsteadOfRecreatingIt()
     {
-        using var json = JsonDocument.Parse(Container("another-volume", true));
-        Assert.Throws<SetupFailure>(() => ConnectionConfiguration.ExistingContainer(json.RootElement));
+        using var json = JsonDocument.Parse(Container("another-volume", true, 5433));
+        Assert.Throws<SetupFailure>(() => ConnectionConfiguration.ExistingContainer(json.RootElement, 5433));
     }
 
     [Fact]
@@ -162,9 +192,16 @@ public class DockerConnectionSetupTests
         }
     }
 
-    private static string Container(string volume, bool running) => JsonSerializer.Serialize(new
+    private static string Container(string volume, bool running, int port, string hostIp = "127.0.0.1") => JsonSerializer.Serialize(new
     {
         Config = new { Image = "postgres:17", Labels = new Dictionary<string, string> { ["com.docker.compose.project"] = "backend" } },
+        HostConfig = new
+        {
+            PortBindings = new Dictionary<string, object[]>
+            {
+                ["5432/tcp"] = [new { HostIp = hostIp, HostPort = port.ToString() }]
+            }
+        },
         Mounts = new[] { new { Destination = "/var/lib/postgresql/data", Name = volume } },
         State = new { Running = running }
     });

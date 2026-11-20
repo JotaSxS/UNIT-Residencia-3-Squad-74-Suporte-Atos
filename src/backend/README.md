@@ -6,7 +6,7 @@ O [README principal](../../README.md) é a fonte oficial do setup. A Etapa B for
 
 ## Ambiente oficial
 
-- Compose: este diretório, `docker-compose.yml`; sobe somente PostgreSQL 17 em `127.0.0.1:5433`.
+- Compose: este diretório, `docker-compose.yml`; sobe somente PostgreSQL 17 em `127.0.0.1:${SUPPORTATOS_DB_PORT:-5433}` (porta HOST configurável; interna `5432`).
 - Preservar serviço/container `supportatos-db`, projeto Compose e volume `backend_supportatos-db-data` (projeto padrão `backend`). Não executar o Compose legado em `Db.SuporteAtos/`.
 - API: `https://localhost:7099`, com `--launch-profile https`. Endereços HTTP anteriores preservados para compatibilidade.
 - Frontend: `https://localhost:5173`, chama a API diretamente e exige HTTPS local.
@@ -16,7 +16,7 @@ O [README principal](../../README.md) é a fonte oficial do setup. A Etapa B for
 
 A factory pertence à API e usa seus provedores padrão, sem iniciar host/seeders ou abrir conexão. Precedência: argumentos > ambiente > User Secrets em Development > appsettings do ambiente > appsettings base. `ConnectionStrings__DefaultConnection` continua compatível e sobrescreve User Secrets.
 
-Development aceita exclusivamente o Docker oficial (`127.0.0.1:5433/supportatos`, usuário `admin`); API, EF e bootstrap validam esse destino antes de abrir conexão. PostgreSQL Windows é preservado e não é alternativa para este projeto. Na raiz, `setup.ps1 -CheckOnly` diagnostica fontes antigas sem alterá-las; `setup.ps1 -ConnectionOnly` permite a troca autorizada com backup DPAPI/ACL, validação do cluster e sem migrations/bootstrap. Os wrappers aplicam a mesma conexão verificada aos filhos e restauram o ambiente anterior ao terminar; variáveis permanentes não são modificadas. Veja detalhes no README principal.
+Development aceita exclusivamente o Docker oficial (`127.0.0.1:<SUPPORTATOS_DB_PORT>/supportatos`, padrão `5433`, usuário `admin`); API, EF e bootstrap validam esse destino antes de abrir conexão. A porta vem de `.supportatos.local.env` na raiz (ignorado pelo Git), carregado por `setup.ps1`/`start.ps1`; comandos manuais do Compose usam `--env-file ../../.supportatos.local.env`. PostgreSQL Windows é preservado e não é alternativa para este projeto. Na raiz, `setup.ps1 -CheckOnly` diagnostica fontes antigas sem alterá-las; `setup.ps1 -ConnectionOnly` permite a troca autorizada com backup DPAPI/ACL, validação do cluster e sem migrations/bootstrap. Os wrappers aplicam a mesma conexão verificada aos filhos e restauram o ambiente anterior ao terminar; variáveis permanentes não são modificadas. Veja detalhes no README principal.
 
 EF não lê launch profiles. Para usar os User Secrets da API, indicar Development. Comandos a partir de `src/backend`:
 

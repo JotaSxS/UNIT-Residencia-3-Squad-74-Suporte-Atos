@@ -23,12 +23,12 @@ Se a política do PowerShell impedir execução, siga a política aprovada pela 
 
 1. Confere Git, Docker Linux local/Compose v2, SDK .NET 10 ou superior (incluindo Preview), runtimes .NET/ASP.NET Core 10, Node 22+ e npm. Preview gera aviso informativo, sem bloqueio. Não instala esses pré-requisitos automaticamente.
 2. Restaura `dotnet-ef` **10.0.0**, pelo manifesto local `.config/dotnet-tools.json`, sem depender da instalação global; compila API/utilitário em Release.
-3. Diagnostica User Secrets, provedores da API e aliases de conexão no ambiente Process/User/Machine. O destino exclusivo é `127.0.0.1:5433/supportatos`, usuário `admin`, sem schema/Options alternativos; `localhost:5433` existente é reconhecido. Para substituir conexão antiga, exige `CONFIGURAR DOCKER supportatos`, solicita a senha Docker sem eco quando necessária, verifica credenciais/cluster e cria backup protegido antes de gravar somente `ConnectionStrings:DefaultConnection` nos User Secrets. Não muda a senha no PostgreSQL. Uma conexão antiga não é mais um bloqueio definitivo: pode ser substituída com consentimento; cancelar mantém a configuração original.
+3. Diagnostica User Secrets, provedores da API e aliases de conexão no ambiente Process/User/Machine. O destino exclusivo é `127.0.0.1:<SUPPORTATOS_DB_PORT>/supportatos` (padrão `5433`), usuário `admin`, sem schema/Options alternativos; `localhost` na mesma porta existente é reconhecido. Para substituir conexão antiga, exige `CONFIGURAR DOCKER supportatos`, solicita a senha Docker sem eco quando necessária, verifica credenciais/cluster e cria backup protegido antes de gravar somente `ConnectionStrings:DefaultConnection` nos User Secrets. Não muda a senha no PostgreSQL. Uma conexão antiga não é mais um bloqueio definitivo: pode ser substituída com consentimento; cancelar mantém a configuração original.
 4. Usa somente o Compose oficial e verifica o volume `backend_supportatos-db-data`. Container em execução é reutilizado; parado exige `INICIAR supportatos-db`. **Nunca recria containers existentes**; usa `--no-recreate`. Alterações de binding da Etapa A continuam pendentes até uma atualização manual autorizada. Não executa Compose legado, SQL histórico, `down` ou remoções de recursos Docker.
 5. Valida conexão, PostgreSQL 17 e identidade do cluster comparando `system_identifier` pelo host e pelo container. Essa leitura exige o usuário administrativo `admin` do Compose. Credencial errada não provoca reset/recriação: informe a senha correta nos User Secrets fora do Git e repita.
 6. Preserva JWT efetivo válido ou reutiliza o par em `tools/SupportAtos.TokenMinter/keys/` (ignorado pelo Git). Gera par somente quando ambos os arquivos e a configuração privada estão ausentes. Pares incompletos/divergentes ou configuração local conflitante interrompem o processo; não há rotação automática. Configura somente valores locais ausentes de Auth/Sso.
 7. Executa `npm ci`, resolve os overrides reais do Vite, prepara/confia no certificado ASP.NET Core e exporta PEM/chave somente quando o par padrão está ausente. Arquivos existentes são validados quanto a correspondência, validade, localhost e confiança; não são sobrescritos. Certificados personalizados ausentes ou pares parciais exigem correção manual. Não usa `dev-certs --clean`.
-8. Aplica migrations pendentes **somente** após digitar `MIGRAR 127.0.0.1:5433/supportatos`. Usa o EF local com a conexão exata validada no ambiente do processo filho, sem senha nos argumentos; não lê outra conexão após a confirmação. Enter cancela a etapa. Em banco existente, providencie backup antes de confirmar.
+8. Aplica migrations pendentes **somente** após digitar `MIGRAR 127.0.0.1:<SUPPORTATOS_DB_PORT>/supportatos` (padrão `5433`). Usa o EF local com a conexão exata validada no ambiente do processo filho, sem senha nos argumentos; não lê outra conexão após a confirmação. Enter cancela a etapa. Em banco existente, providencie backup antes de confirmar.
 9. Se houver Admin ou marcador, preserva-os e não executa bootstrap. Caso contrário oferece `ADMIN` para abrir o comando interativo seguro da API; Enter deixa a criação pendente. O comando mantém sua confirmação própria `INICIALIZAR supportatos` e senha sem eco. Admin preexistente sem credencial exige recuperação por procedimento próprio; não será recriado pelo setup.
 
 O utilitário auxiliar `SupportAtos.DevSetup` usa os provedores da API em Development e omite diagnósticos de subprocessos que possam conter segredos. A conexão verificada é aplicada ao ambiente do processo pai e herdada por API, EF e bootstrap, com remoção temporária dos aliases conflitantes; ao terminar, o ambiente anterior é restaurado. **Variáveis permanentes de usuário/máquina não são modificadas.** User Secrets continuam fora do Git, mas não são cofre criptografado. A senha inicial do PostgreSQL também fica no ambiente interno do container, como no Compose original; não publique `docker inspect` completo.
@@ -92,7 +92,7 @@ A validação usa `dotnet --version` dentro do checkout, respeitando PATH e even
 
 | Serviço | Endereço |
 | --- | --- |
-| PostgreSQL no host | `127.0.0.1:5433`, banco `supportatos`, usuário `admin` |
+| PostgreSQL no host | `127.0.0.1:<SUPPORTATOS_DB_PORT>`, banco `supportatos`, usuário `admin` (padrão `5433`) |
 | API | `https://localhost:7099` |
 | Swagger / saúde do host | `https://localhost:7099/swagger` / `https://localhost:7099/health` |
 | Frontend | `https://localhost:5173` |
@@ -101,15 +101,39 @@ A validação usa `dotnet --version` dentro do checkout, respeitando PATH e even
 
 ## PostgreSQL e dados persistentes
 
-O único Compose oficial é [src/backend/docker-compose.yml](src/backend/docker-compose.yml): PostgreSQL 17, publicação `127.0.0.1:5433:5432`, healthcheck e volume persistente em `/var/lib/postgresql/data`. Sobe somente o banco; API e frontend rodam no host.
+O único Compose oficial é [src/backend/docker-compose.yml](src/backend/docker-compose.yml): PostgreSQL 17, publicação `127.0.0.1:${SUPPORTATOS_DB_PORT:-5433}:5432` (porta HOST configurável, porta interna fixa `5432`), healthcheck e volume persistente em `/var/lib/postgresql/data`. Sobe somente o banco; API e frontend rodam no host.
 
 Serviço/container `supportatos-db` e chave de volume `supportatos-db-data` foram preservados. Com o projeto padrão `backend`, o volume existente é **`backend_supportatos-db-data`**. Não mudar `-p`, `COMPOSE_PROJECT_NAME`, diretório do Compose ou usar outro Compose sem conferir a identidade do volume. Outro projeto pode selecionar outro volume e aparentar perda dos dados.
 
 [Db.SuporteAtos/docker-compose.yml](src/backend/Db.SuporteAtos/docker-compose.yml) é legado e não deve ser executado no onboarding. Disputa container/porta, seleciona outro volume e inicializa SQL histórico incompatível com o fluxo EF. Está preservado para referência.
 
-PostgreSQL Windows, inclusive serviços em `5432`, permanece intacto e fora do fluxo de desenvolvimento do SupportAtos. Não parar serviços, desinstalar, testar credenciais ou migrar dados dessa instalação. O projeto usa exclusivamente o Docker em `5433`.
+PostgreSQL Windows, inclusive serviços em `5432`, permanece intacto e fora do fluxo de desenvolvimento do SupportAtos. Não parar serviços, desinstalar, testar credenciais ou migrar dados dessa instalação. O projeto usa exclusivamente o Docker na porta configurada em `SUPPORTATOS_DB_PORT` (padrão `5433`); se essa porta estiver ocupada na sua máquina, escolha outra.
 
-O Compose mantém o fallback de senha local anterior por compatibilidade. Em volume novo, definir `POSTGRES_PASSWORD` localmente antes da primeira inicialização. Em volume existente, preservar a senha real: alterar a variável **não altera a senha armazenada**. Não versionar credenciais, apagar volumes ou usar `down -v` como solução de onboarding. A publicação em loopback só passa a valer na próxima recriação autorizada do container; esta etapa não o recria.
+### Porta local do PostgreSQL
+
+Cada máquina pode publicar o Docker em uma porta diferente sem alterar arquivos versionados. Copie `.supportatos.local.env.example` para `.supportatos.local.env` na raiz do repositório (ignorado pelo Git) e ajuste:
+
+```text
+SUPPORTATOS_DB_PORT=5434
+```
+
+`setup.ps1`, `start.ps1` e o utilitário `SupportAtos.DevSetup` leem esse arquivo e exportam a mesma variável para o Compose, a API, o EF Core e o bootstrap. A conexão em User Secrets deve usar exatamente a mesma porta; o setup grava a porta configurada e o diagnóstico recusa uma connection string divergente antes de abrir conexão.
+
+O Compose **não** carrega automaticamente esse arquivo por estar em outro diretório. Para comandos manuais, informe-o explicitamente a partir de `src/backend`:
+
+```powershell
+docker compose --env-file ../../.supportatos.local.env -f docker-compose.yml config
+```
+
+Se a porta escolhida estiver ocupada, o setup exibe a mensagem e não encerra processos de outros projetos; escolha outra porta. Alterar a porta de um container já existente exige recriação autorizada, preservando o volume (não use `down -v`):
+
+```powershell
+docker compose --env-file ../../.supportatos.local.env -f docker-compose.yml up -d --force-recreate --no-deps supportatos-db
+```
+
+A recriação acima modifica o container real; execute-a somente quando autorizado e após conferir que o volume `backend_supportatos-db-data` será reutilizado. Ela não apaga dados nem altera a senha já armazenada.
+
+O Compose mantém o fallback de senha local anterior por compatibilidade. Em volume novo, definir `POSTGRES_PASSWORD` localmente antes da primeira inicialização. Em volume existente, preservar a senha real: alterar a variável **não altera a senha armazenada**. Não versionar credenciais, apagar volumes ou usar `down -v` como solução de onboarding. A publicação em loopback e a porta configurada só passam a valer na próxima recriação autorizada do container; esta etapa não o recria.
 
 ## Conexão da aplicação e do EF Core
 
@@ -123,15 +147,15 @@ Aplicação e factory de design-time usam os provedores padrão da API. Precedê
 
 Usar o mesmo ambiente e overrides em ambos os processos. Os wrappers fixam a conexão verificada no ambiente dos filhos, acima dos User Secrets; aliases antigos são removidos apenas da sessão e restaurados ao sair. A factory encontra a pasta da API a partir do checkout, inclusive da raiz ou de `src/backend`, sem iniciar host, seeders ou autenticação e sem abrir conexão/aplicar migrations por conta própria. Em Development, a política compartilhada com API/setup valida o destino Docker antes do contexto ser criado.
 
-**EF não lê launchSettings.json.** Passar `-- --environment Development` para carregar User Secrets. Sem ambiente explícito/variáveis, o padrão é Production. `DOTNET_ENVIRONMENT` tem prioridade sobre `ASPNETCORE_ENVIRONMENT`; `--environment` seleciona explicitamente o ambiente. O appsettings Development contém somente um placeholder para o Docker oficial; configure a senha local pelo setup.
+**EF não lê launchSettings.json.** Passar `-- --environment Development` para carregar User Secrets. Sem ambiente explícito/variáveis, o padrão é Production. `DOTNET_ENVIRONMENT` tem prioridade sobre `ASPNETCORE_ENVIRONMENT`; `--environment` seleciona explicitamente o ambiente. O appsettings Development contém somente um placeholder na porta padrão; fora dos wrappers, defina `SUPPORTATOS_DB_PORT` no processo e configure a senha local pelo setup. Em Development, API/EF também recusam uma porta diferente da configurada.
 
 Exemplo de destino Docker, sem credencial pronta:
 
 ```text
-Host=127.0.0.1;Port=5433;Database=supportatos;Username=admin;Password=<senha local existente>
+Host=127.0.0.1;Port=<SUPPORTATOS_DB_PORT>;Database=supportatos;Username=admin;Password=<senha local existente>
 ```
 
-Guardar a conexão em User Secrets da API ou ambiente do processo. User Secrets ficam fora do Git, mas não são cofre criptografado. Arquivos `.env` do Compose/Vite não são carregados automaticamente pela API/EF. No frontend, usar `.env.local`, ignorado pelo Git. Variáveis `VITE_*` vão para o navegador e não devem conter segredos.
+Guardar a conexão em User Secrets da API ou ambiente do processo. User Secrets ficam fora do Git, mas não são cofre criptografado. Arquivos `.env` do Compose/Vite não são carregados automaticamente pela API/EF; a porta local usa `.supportatos.local.env` lido pelos wrappers e o Compose manual usa `--env-file`. No frontend, usar `.env.local`, ignorado pelo Git. Variáveis `VITE_*` vão para o navegador e não devem conter segredos.
 
 ## Schema, dados de desenvolvimento e Admin
 
