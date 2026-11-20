@@ -8,6 +8,7 @@ $script:DefaultSupportAtosDbPort = 5433
 
 function Get-SupportAtosDbPort {
     $raw = $env:SUPPORTATOS_DB_PORT
+    if ([string]::IsNullOrWhiteSpace($raw) -and (Get-Variable ResolvedDbPort -Scope Script -ErrorAction SilentlyContinue)) { $raw = [string]$script:ResolvedDbPort }
     if ([string]::IsNullOrWhiteSpace($raw)) { return $script:DefaultSupportAtosDbPort }
     $port = 0
     if (-not [int]::TryParse($raw.Trim(), [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
@@ -19,6 +20,7 @@ function Get-SupportAtosDbPort {
 function Initialize-SupportAtosDbPort {
     # .supportatos.local.env e a unica fonte local da porta HOST. O Compose recebe o
     # mesmo valor pelo ambiente do processo; nao dependemos de .env auto-carregado.
+    $script:DbPortSource = 'ambiente SUPPORTATOS_DB_PORT'
     $localFile = Join-Path $script:RepoRoot '.supportatos.local.env'
     if (Test-Path -LiteralPath $localFile) {
         foreach ($line in [System.IO.File]::ReadAllLines($localFile)) {
@@ -28,14 +30,74 @@ function Initialize-SupportAtosDbPort {
             if ($pair.Count -ne 2) { throw 'Linha invalida em .supportatos.local.env. Use SUPPORTATOS_DB_PORT=<porta>.' }
             if ($pair[0].Trim() -ne 'SUPPORTATOS_DB_PORT') { continue }
             $filePort = $pair[1].Trim().Trim('"').Trim("'")
+            $validatedPort = 0
+            if (-not [int]::TryParse($filePort, [ref]$validatedPort) -or $validatedPort -lt 1 -or $validatedPort -gt 65535) {
+                throw '.supportatos.local.env contem SUPPORTATOS_DB_PORT invalida. Corrija manualmente com um numero entre 1 e 65535; arquivo preservado.'
+            }
             $environmentPort = $env:SUPPORTATOS_DB_PORT
             if (-not [string]::IsNullOrWhiteSpace($environmentPort) -and $environmentPort.Trim() -ne $filePort) {
                 throw "SUPPORTATOS_DB_PORT=$($environmentPort.Trim()) difere de .supportatos.local.env ($filePort). Use uma unica fonte local para a porta."
             }
-            $env:SUPPORTATOS_DB_PORT = $filePort
+            $script:DbPortSource = '.supportatos.local.env'
+            $script:ResolvedDbPort = $filePort
         }
     }
-    $null = Get-SupportAtosDbPort
+    if ((Test-Path -LiteralPath $localFile) -and $script:DbPortSource -ne '.supportatos.local.env') {
+        throw '.supportatos.local.env existe, mas nao contem SUPPORTATOS_DB_PORT valida. Adicione a porta manualmente; arquivo preservado.'
+    }
+    if ($script:DbPortSource -eq '.supportatos.local.env' -or -not [string]::IsNullOrWhiteSpace($env:SUPPORTATOS_DB_PORT)) {
+        $null = Get-SupportAtosDbPort
+        return
+    }
+    $names = @(& docker ps -a --format '{{.Names}}')
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar Docker para descobrir a porta.' }
+    if ($names -contains 'supportatos-db') {
+        $raw = & docker inspect supportatos-db --format '{{json .}}'
+        if ($LASTEXITCODE -ne 0) { throw 'Falha ao inspecionar container existente.' }
+        $container = ($raw -join "`n") | ConvertFrom-Json
+        $script:ResolvedDbPort = Get-OfficialContainerPort $container
+        $script:DbPortSource = 'container oficial supportatos-db'
+    } else {
+        $script:ResolvedDbPort = $null
+        foreach ($candidate in 5433..5443) {
+            if (Test-DbPortAvailable $candidate) { $script:ResolvedDbPort = $candidate; break }
+        }
+        if ($null -eq $script:ResolvedDbPort) { throw 'Nenhuma porta livre entre 5433 e 5443. Configure SUPPORTATOS_DB_PORT.' }
+        $script:DbPortSource = 'porta livre (5433..5443)'
+    }
+}
+
+function Get-OfficialContainerPort {
+    param($Container)
+    $mounts = @($Container.Mounts | Where-Object { $_.Type -eq 'volume' -and $_.Destination -eq '/var/lib/postgresql/data' -and $_.Name -eq 'backend_supportatos-db-data' })
+    if ($Container.Config.Image -ne 'postgres:17' -or $Container.Config.Labels.'com.docker.compose.project' -ne 'backend' -or $Container.Config.Labels.'com.docker.compose.service' -ne 'supportatos-db' -or $mounts.Count -ne 1) {
+        throw 'Container existente diverge da identidade oficial; nenhum recurso foi alterado.'
+    }
+    $entries = @($Container.HostConfig.PortBindings.'5432/tcp')
+    $port = 0
+    if ($entries.Count -ne 1 -or $entries[0].HostIp -ne '127.0.0.1' -or
+        -not [int]::TryParse([string]$entries[0].HostPort, [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
+        throw 'Binding existente invalido ou ambiguo; exige uma porta em 127.0.0.1.'
+    }
+    return $port
+}
+
+function Test-DbPortAvailable {
+    param([int]$Port)
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+    try { $listener.Start(); return $true }
+    catch [System.Net.Sockets.SocketException] { return $false }
+    finally { $listener.Stop() }
+}
+
+function Save-SupportAtosDbPort {
+    $path = Join-Path $script:RepoRoot '.supportatos.local.env'
+    if (Test-Path -LiteralPath $path) { return }
+    $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes("SUPPORTATOS_DB_PORT=$(Get-SupportAtosDbPort)`n")
+        $stream.Write($bytes, 0, $bytes.Length)
+    } finally { $stream.Dispose() }
 }
 
 . (Join-Path $PSScriptRoot 'Development.Connection.ps1')

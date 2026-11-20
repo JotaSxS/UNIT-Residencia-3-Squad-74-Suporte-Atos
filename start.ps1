@@ -29,6 +29,7 @@ $previousDotnet = $env:DOTNET_ENVIRONMENT
 $previousAspnet = $env:ASPNETCORE_ENVIRONMENT
 $previousUrls = $env:ASPNETCORE_URLS
 $previousConnectionEnvironment = Get-ProcessConnectionEnvironment
+$previousDbPort = $env:SUPPORTATOS_DB_PORT
 try {
     Test-DevelopmentPrerequisites
     if ($CheckOnly) {
@@ -86,5 +87,6 @@ try {
     $env:ASPNETCORE_ENVIRONMENT = $previousAspnet
     $env:ASPNETCORE_URLS = $previousUrls
     if (-not $CheckOnly) { Restore-ProcessConnectionEnvironment $previousConnectionEnvironment }
+    $env:SUPPORTATOS_DB_PORT = $previousDbPort
     Pop-Location
 }

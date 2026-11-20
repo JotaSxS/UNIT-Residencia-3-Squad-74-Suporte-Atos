@@ -49,3 +49,13 @@ it('falha na restauração mostra somente o login', () => {
   expect(screen.getByText('Login público')).toBeInTheDocument();
   expect(screen.queryByText('Menu protegido')).not.toBeInTheDocument();
 });
+
+it.each(['/usuarios', '/rota-inexistente', '/chamados/inexistente'])(
+  'mantem navegacao interna e retorna a lista para cliente em %s', async (path) => {
+    auth.state = { status: 'authenticated', session: { usuarioId: 2, role: 'cliente', nome: 'Cliente', empresa: 'Empresa' } };
+    render(<MemoryRouter initialEntries={[path]}><SupportPortal /></MemoryRouter>);
+    expect(await screen.findByText('Chamados protegidos')).toBeInTheDocument();
+    expect(screen.queryByText('Admin protegido')).not.toBeInTheDocument();
+    expect(screen.queryByText('Login p�blico')).not.toBeInTheDocument();
+  },
+);

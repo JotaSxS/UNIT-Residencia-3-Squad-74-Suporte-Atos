@@ -5,6 +5,7 @@ param([switch]$CheckOnly, [switch]$ConnectionOnly)
 . (Join-Path $PSScriptRoot 'scripts/Development.Common.ps1')
 Push-Location $script:RepoRoot
 $previousConnectionEnvironment = Get-ProcessConnectionEnvironment
+$previousDbPort = $env:SUPPORTATOS_DB_PORT
 try {
     Test-DevelopmentPrerequisites
     if ($CheckOnly) {
@@ -18,6 +19,7 @@ try {
     Invoke-Checked -Command dotnet -Arguments @('tool', 'run', 'dotnet-ef', '--', '--version') -Failure 'EF local indisponivel. Revise .config/dotnet-tools.json e execute dotnet tool restore na raiz.'
     Invoke-Checked -Command dotnet -Arguments @('build', $script:HelperProject, '-c', 'Release', '--nologo', '-v', 'minimal') -Failure 'Build falhou. Confira NuGet/SDK; se houver DLL bloqueada, encerre somente a instancia correspondente da API.'
     Use-DockerDevelopmentConnection -Configure
+    Save-SupportAtosDbPort
     if ($ConnectionOnly) {
         Write-Host 'Conexao Docker preparada e verificada. JWT, certificados, migrations e bootstrap nao foram executados.' -ForegroundColor Green
         return
@@ -35,4 +37,4 @@ try {
 } catch {
     Write-Host ("ERRO: " + $_.Exception.Message) -ForegroundColor Red
     exit 1
-} finally { if (-not $CheckOnly) { Restore-ProcessConnectionEnvironment $previousConnectionEnvironment }; Pop-Location }
+} finally { if (-not $CheckOnly) { Restore-ProcessConnectionEnvironment $previousConnectionEnvironment }; $env:SUPPORTATOS_DB_PORT = $previousDbPort; Pop-Location }

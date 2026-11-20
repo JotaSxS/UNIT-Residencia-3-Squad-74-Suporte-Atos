@@ -67,7 +67,7 @@ function Show-DevelopmentConnectionDiagnostics {
     Initialize-SupportAtosDbPort
     $dbPort = Get-SupportAtosDbPort
     Add-Type -AssemblyName System.Data
-    Write-Host "Porta Docker configurada: 127.0.0.1:$dbPort (SUPPORTATOS_DB_PORT)."
+    Write-Host "Porta Docker configurada: 127.0.0.1:$dbPort (origem: $script:DbPortSource)."
     $api = Join-Path $script:RepoRoot 'src/backend/src/SupportAtos.Api'
     $sources = @(
         @{ Label = 'appsettings.json'; Path = (Join-Path $api 'appsettings.json') },
@@ -145,6 +145,7 @@ function Show-DevelopmentConnectionDiagnostics {
 function Use-DockerDevelopmentConnection {
     param([switch]$Configure)
     Initialize-SupportAtosDbPort
+    $env:SUPPORTATOS_DB_PORT = [string](Get-SupportAtosDbPort)
     $privateRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'SupportAtos/setup-private'
     $ticket = Join-Path $privateRoot ('sessions/' + [guid]::NewGuid().ToString('N') + '.dpapi')
     $previousTicket = $env:SUPPORTATOS_SETUP_SESSION_FILE

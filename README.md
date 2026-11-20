@@ -111,6 +111,8 @@ PostgreSQL Windows, inclusive servi√ßos em `5432`, permanece intacto e fora do f
 
 ### Porta local do PostgreSQL
 
+Descoberta de porta no onboarding: configuracoes explicitas no arquivo local e no ambiente prevalecem (divergencia gera erro). Sem elas, o binding unico em loopback do container oficial, inclusive parado, determina a porta. Sem container, procura uma porta livre de 5433 a 5443. Identidade divergente interrompe a descoberta. O setup salva a porta somente apos validar a conexao, sem sobrescrever arquivo existente. CheckOnly informa a origem sem persistir ou exportar a porta. A disponibilidade nao reserva a porta ate a subida do Docker. Arquivo local existente sem porta v·lida exige correÁ„o manual e permanece preservado.
+
 Cada m√°quina pode publicar o Docker em uma porta diferente sem alterar arquivos versionados. Copie `.supportatos.local.env.example` para `.supportatos.local.env` na raiz do reposit√≥rio (ignorado pelo Git) e ajuste:
 
 ```text
