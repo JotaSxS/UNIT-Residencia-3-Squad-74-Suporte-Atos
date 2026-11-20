@@ -1,14 +1,10 @@
-// Cliente HTTP da API SupportAtos (backend/src/SupportAtos.Api). Sem dados mockados.
-//
-// Configuração (arquivo .env.local na raiz do front):
-//   VITE_API_URL=http://localhost:5177     # URL base da API (padrão abaixo)
-//   VITE_API_TOKEN=<jwt>                   # opcional, só para desenvolvimento; o token vem do SSO
-// Em runtime o token pode ficar em sessionStorage na chave "atos_token" (o login SSO deve gravá-lo ali).
+// Cliente HTTP autenticado. JWT em memória; cookie HttpOnly apenas nos endpoints de autenticação.
 import i18n from './i18n';
+import { ApiError, responseError, send } from './http';
+import { ensureAccessToken, expireSession, getAuthEpoch, getTokenVersion, refreshSession } from './auth';
 import { parseApiDate } from './dates';
 import type { PriorityKey, Session, StatusKey, Ticket } from './types';
 
-const BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:5177').replace(/\/$/, '');
 export const TITULO_MAX = 200;
 
 /* ---------------------------------------------------------------------- */
@@ -69,117 +65,35 @@ export interface NovoUsuarioInput {
 /* Transporte                                                              */
 /* ---------------------------------------------------------------------- */
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly errors: string[];
-  /** Campo da requisição que causou o erro (ex.: "titulo"), quando a API informa. */
-  readonly campo?: string;
-
-  constructor(message: string, status: number, errors: string[] = [], campo?: string) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.errors = errors;
-    this.campo = campo;
-  }
-}
-
-interface ProblemDetails {
-  detail?: string;
-  errors?: string[];
-  campo?: string;
-}
-
-export function getToken(): string {
-  try {
-    const stored = window.sessionStorage.getItem('atos_token');
-    if (stored) return stored;
-  } catch { /* sessionStorage indisponível */ }
-  return (import.meta.env.VITE_API_TOKEN as string | undefined) || '';
-}
-
-export function setToken(token: string): void {
-  try { window.sessionStorage.setItem('atos_token', token); } catch { /* sessionStorage indisponível */ }
-}
-
-export function clearToken(): void {
-  try { window.sessionStorage.removeItem('atos_token'); } catch { /* sessionStorage indisponível */ }
-}
+export { ApiError } from './http';
 
 async function request<T>(path: string, { method = 'GET', body }: { method?: string; body?: unknown } = {}): Promise<T> {
-  const token = getToken();
-  if (!token) {
-    throw new ApiError(i18n.t('api.noToken'), 401);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${BASE_URL}${path}`, {
+  let token = await ensureAccessToken();
+  const epoch = getAuthEpoch();
+  const observedVersion = getTokenVersion();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (epoch !== getAuthEpoch()) throw new ApiError(i18n.t('api.unauthorized'), 401);
+    const response = await send(path, {
       method,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(body !== undefined && { 'Content-Type': 'application/json' }),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  } catch {
-    throw new ApiError(i18n.t('api.network'), 0);
+    if (epoch !== getAuthEpoch()) throw new ApiError(i18n.t('api.unauthorized'), 401);
+    if (response.status === 401 && attempt === 0) {
+      await refreshSession(observedVersion);
+      if (epoch !== getAuthEpoch()) throw new ApiError(i18n.t('api.unauthorized'), 401);
+      token = await ensureAccessToken();
+      continue;
+    }
+    if (response.status === 401) expireSession(epoch);
+    if (!response.ok) throw await responseError(response);
+    const payload = response.status === 204 ? null : await response.json();
+    if (epoch !== getAuthEpoch()) throw new ApiError(i18n.t('api.unauthorized'), 401);
+    return payload as T;
   }
-
-  if (response.ok) return (response.status === 204 ? null : await response.json()) as T;
-
-  // ProblemDetails do backend: { title, detail, errors: [...] }
-  let problem: ProblemDetails | null = null;
-  try { problem = (await response.json()) as ProblemDetails; } catch { /* corpo vazio */ }
-  const errors = Array.isArray(problem?.errors) ? problem.errors : [];
-  const fallback = ({
-    401: i18n.t('api.unauthorized'),
-    403: i18n.t('api.forbidden'),
-  } as Record<number, string>)[response.status] || i18n.t('api.generic');
-  throw new ApiError(problem?.detail || errors[0] || fallback, response.status, errors, problem?.campo);
+  throw new ApiError(i18n.t('api.unauthorized'), 401);
 }
-
-/* ---------------------------------------------------------------------- */
-/* Login de desenvolvimento (só existe com a API em Development)           */
-/* ---------------------------------------------------------------------- */
-
-export interface DevLoginInput {
-  email: string;
-  nome: string;
-  papel: PapelApi;
-  grupoId?: string;
-  grupoNome?: string;
-}
-
-/**
- * Pede à API (POST /api/dev/token) um JWT de desenvolvimento e o guarda para as próximas chamadas.
- * Em produção esse endpoint não existe: o token vem do SSO e deve ser gravado em sessionStorage ("atos_token").
- */
-export async function loginDev(input: DevLoginInput): Promise<void> {
-  let response: Response;
-  try {
-    response = await fetch(`${BASE_URL}/api/dev/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(input),
-    });
-  } catch {
-    throw new ApiError(i18n.t('api.network'), 0);
-  }
-  if (!response.ok) {
-    let detail: string | undefined;
-    try { detail = ((await response.json()) as ProblemDetails).detail; } catch { /* corpo vazio */ }
-    throw new ApiError(detail || i18n.t('api.generic'), response.status);
-  }
-  const { token } = (await response.json()) as { token: string };
-  setToken(token);
-}
-
-/* ---------------------------------------------------------------------- */
-/* Chamados                                                                */
-/* ---------------------------------------------------------------------- */
-
 /** Opções reais de produto/categoria (tabela sla_categoria). */
 export const listarSlaCategorias = () => request<SlaCategoriaDto[]>('/api/sla-categorias');
 

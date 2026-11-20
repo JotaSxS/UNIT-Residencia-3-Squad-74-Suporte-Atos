@@ -48,9 +48,9 @@ const es: Locale = {
     queue: 'Cola de atención', myTickets: 'Mis tickets', reports: 'Informes', users: 'Registro de usuarios',
     secure: 'Entorno seguro', themeDark: 'Tema oscuro', themeLight: 'Tema claro', logout: 'Salir',
     closeMenu: 'Cerrar menú', openMenu: 'Abrir menú', breadcrumbRoot: 'Centro de atención',
-    captions: { cliente: 'Sincronizado vía SSO', agente: 'Equipo de soporte', admin: 'Administración del sistema' },
-    roleLabels: { cliente: 'Cliente Atos Capital', agente: 'Equipo de soporte', admin: 'Administrador' },
-    context: { agente: 'Equipo de soporte', admin: 'Administración' },
+    captions: { cliente: 'Sincronizado vía SSO', agente: 'Equipo de soporte', supervisor: 'Supervisión', admin: 'Administración del sistema' },
+    roleLabels: { cliente: 'Cliente Atos Capital', agente: 'Equipo de soporte', supervisor: 'Supervisión', admin: 'Administrador' },
+    context: { agente: 'Equipo de soporte', supervisor: 'Supervisión', admin: 'Administración' },
   },
   notifications: {
     title: 'Notificaciones', markAll: 'Marcar todo como leído', empty: 'Ninguna notificación.',

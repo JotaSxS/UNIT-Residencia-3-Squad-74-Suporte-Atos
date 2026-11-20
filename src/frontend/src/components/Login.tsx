@@ -1,5 +1,4 @@
 // Tela de login única. Existem dois tipos de conta (administrador e membro da equipe); o perfil vem da conta, não de uma aba.
-// O login ainda é simulado (ver auth.ts); em `npm run dev` ele pede um token de desenvolvimento à API (ver api.ts).
 import React, { useState } from 'react';
 import {
   Box, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, InputAdornment, Link, Paper, Stack, Typography,
@@ -11,18 +10,16 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
 import { ArrowForward, DarkModeOutlined, LightModeOutlined, VerifiedUserOutlined, Visibility, VisibilityOff } from '@mui/icons-material';
-import { loginDev } from '../api';
-import { nomeDoEmail, papelPorEmail } from '../auth';
+import { login } from '../auth';
+import { notifyApiError } from '../notify';
 import FormTextField from './form/FormTextField';
 import LanguageSwitcher from './LanguageSwitcher';
 import { BrandMark, Eyebrow } from './ui';
 import type { Session, ThemeMode } from '../types';
 
-const PASSWORD_MIN = 4;
-
 const loginSchema = yup.object({
   email: yup.string().trim().required('validation.required').email('validation.email'),
-  password: yup.string().required('validation.required').min(PASSWORD_MIN, 'validation.passwordMin'),
+  password: yup.string().required('validation.required'),
 });
 type LoginForm = yup.InferType<typeof loginSchema>;
 
@@ -44,16 +41,11 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
     defaultValues: { email: '', password: '' },
   });
 
-  const onSubmit = async ({ email }: LoginForm) => {
+  const onSubmit = async ({ email, password }: LoginForm) => {
     setLoading(true);
-    const role = papelPorEmail(email);
-    const nome = nomeDoEmail(email);
-    // Em desenvolvimento pega um JWT de dev na API para as telas que usam a API funcionarem.
-    // Se a API estiver fora do ar o login segue (telas mockadas), com um aviso.
-    if (import.meta.env.DEV) {
-      try { await loginDev({ email, nome, papel: role === 'admin' ? 'Admin' : 'Agente' }); } catch { toast.warning(t('login.devTokenFailed')); }
-    }
-    onLogin({ role, nome, empresa: null, email });
+    try { onLogin(await login(email, password)); }
+    catch (error) { notifyApiError(error, t('api.generic')); }
+    finally { setLoading(false); }
   };
 
   const fieldSx = {
@@ -105,7 +97,7 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
               <FormTextField<LoginForm> name="email" control={control} topLabel required fullWidth type="email" autoComplete="username"
                 label={t('login.form.email')} placeholder={t('login.form.emailPlaceholder')} sx={fieldSx} />
               <FormTextField<LoginForm> name="password" control={control} topLabel required fullWidth autoComplete="current-password"
-                type={showSenha ? 'text' : 'password'} label={t('login.form.password')} errorParams={{ min: PASSWORD_MIN }} sx={fieldSx}
+                type={showSenha ? 'text' : 'password'} label={t('login.form.password')} sx={fieldSx}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -117,7 +109,7 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
                 }} />
 
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap spacing={1}>
-                <FormControlLabel control={<Checkbox size="small" />} label={t('login.form.keepConnected')} slotProps={{ typography: { fontSize: 14, color: 'text.secondary' } }} />
+                <FormControlLabel control={<Checkbox size="small" checked disabled />} label={t('login.form.keepConnected')} slotProps={{ typography: { fontSize: 14, color: 'text.secondary' } }} />
                 <Link component="button" type="button" underline="hover" onClick={() => toast.warning(t('login.forgotInfo'))}
                   sx={{ fontWeight: 700, fontSize: 14, color: 'primary.main' }}>
                   {t('login.form.forgotPassword')}

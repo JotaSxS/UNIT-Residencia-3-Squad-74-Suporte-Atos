@@ -6,20 +6,71 @@ a chamados, notas internas, notificações e relatórios. A **abertura de chamad
 
 ## Como rodar
 
-```bash
-npm install
-npm run dev     # http://localhost:5173
+Execute os comandos abaixo na raiz do repositório. Requer Node.js 18+ e .NET SDK 10.
+O certificado de desenvolvimento fica no perfil do Windows, fora do Git; nunca copie sua chave para o projeto.
+
+```powershell
+dotnet dev-certs https --trust
+$certDir = Join-Path $env:USERPROFILE '.aspnet\https'
+New-Item -ItemType Directory -Force -Path $certDir | Out-Null
+# Exporte uma vez; preserve o par existente nas próximas execuções.
+if (!(Test-Path (Join-Path $certDir 'supportatos-frontend.pem')) -and
+    !(Test-Path (Join-Path $certDir 'supportatos-frontend.key'))) {
+    dotnet dev-certs https --export-path (Join-Path $certDir 'supportatos-frontend.pem') --format Pem --no-password
+}
 ```
 
-Requer Node.js 18 ou superior.
+Backend, em um terminal (encerre primeiro a instância antiga para recarregar CORS/CSRF):
+
+```powershell
+dotnet run --project .\src\backend\src\SupportAtos.Api\SupportAtos.Api.csproj --launch-profile https -- --urls https://localhost:7099
+```
+
+Frontend, em outro terminal:
+
+```powershell
+cd .\src\frontend
+npm ci
+npm run dev
+```
+
+Abra **https://localhost:5173**. A porta é fixa e não há fallback para HTTP. Use o certificado confiável preparado acima.
+Se faltar um dos arquivos, restaure o par antes de iniciar. Caminhos alternativos podem ser definidos em
+`SUPPORTATOS_HTTPS_CERT` e `SUPPORTATOS_HTTPS_KEY` (veja `.env.example`); mantenha-os fora do repositório.
+A API em Development autoriza explicitamente essa origem para CORS e CSRF, preservando as origens anteriores.
+Não é necessário alterar banco, usuários ou cookies: continuam HttpOnly, Secure e SameSite=Lax.
+O `npm run preview` não substitui este ambiente autenticado; use `npm run dev` para esta validação.
 
 ### Telas que usam a API real (abertura de chamado e cadastro de usuários)
 
-Em desenvolvimento (`npm run dev`) o login do portal pede um token de dev à API (`POST /api/dev/token`) e o guarda em
-`sessionStorage` ("atos_token"); é só subir a API em Development (veja `backend/README.md`). A URL da API vem de
-`VITE_API_URL` (padrão `http://localhost:5177`). Alternativa manual: gere um token com `backend/scripts/mint-token.ps1` e
-coloque em `VITE_API_TOKEN` no `.env.local` (copie de `.env.example`). Em produção o SSO deve gravar o token em
-`sessionStorage` na chave `atos_token`.
+A autenticação interna usa `POST /api/auth/login`, enviando `{ email, senha }`. A URL da API vem de
+`VITE_API_URL` (padrão `https://localhost:7099`; exemplo em `.env.example`). Nome, papel, identificador e grupo
+vêm do backend. O JWT permanece somente na memória da aba; não existe fallback para `VITE_API_TOKEN` ou Storage.
+O token legado `atos_token` é removido de Storage na inicialização.
+
+`/api/auth/login`, `/refresh` e `/logout` usam `credentials: 'include'`. O navegador administra o cookie
+HttpOnly; JavaScript não o lê. Ao carregar a página, o portal aguarda uma única restauração pelo refresh antes
+de renderizar login ou telas protegidas. Requisições simultâneas compartilham o refresh; uma resposta 401 pode
+ser repetida uma única vez com o novo JWT. Erros 403 não provocam refresh. Falha de renovação encerra o estado local.
+O logout limpa a memória imediatamente mesmo com falha de rede, mas a revogação no servidor exige sucesso da chamada:
+se ela falhar, um cookie ainda válido poderá restaurar a sessão numa nova carga. A coordenação é por aba.
+
+### Validação manual da autenticação
+
+1. Use uma conta de teste já ativada e uma API com certificado HTTPS confiável. Não compartilhe tokens ou senhas em logs/screenshots.
+2. Defina `VITE_API_URL=https://localhost:7099` no ambiente do Vite e reinicie-o se alterar essa variável.
+3. Abra https://localhost:5173 e use a API HTTPS; reinicie a API após mudanças na lista de origens. Faça login novamente para obter o cookie no contexto correto.
+4. Entre com senha incorreta: deve continuar no login e mostrar o erro. Entre com credenciais válidas: confira nome e
+   menus conforme o papel retornado. O texto do e-mail não concede permissão.
+5. Recarregue uma rota interna: aparece carregamento durante `/refresh` e depois a mesma rota, sem novo login.
+6. Aguarde o vencimento do acesso ou simule 401 em ambiente de teste e execute ações simultâneas: somente um refresh
+   deve recuperar aquela geração de acesso; cada requisição pode repetir no máximo uma vez.
+7. Saia: `/logout` deve limpar a sessão local. Recarregue após logout bem-sucedido: deve permanecer no login.
+8. Remova o cookie pelo painel do navegador ou deixe-o expirar em ambiente de teste: a restauração deve retornar ao
+   login, sem loop. Confira que nenhum JWT é gravado em localStorage/sessionStorage.
+
+Testes automatizados: `npm test`; build: `npm run build`. Os testes de transporte simulam `fetch` e os de interface
+usam jsdom; não validam TLS, CORS, CSRF ou envio real de cookies entre origens. Cadastro/convites/ativação estão fora desta fase.
 
 ## Padrão de interface: MUI + tokens
 
@@ -92,7 +143,7 @@ src/
 ├─ SupportPortal.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e rotas
 ├─ types.ts              # tipos de domínio (Ticket, Session, Role, ViewId...)
 ├─ api.ts                # cliente HTTP da API + tipos dos DTOs (chamados, usuários, grupos)
-├─ auth.ts               # papel da conta no login simulado (admin / equipe)
+├─ auth.ts               # sessão em memória, login, restauração, refresh coordenado e logout
 ├─ dates.ts              # dayjs: formatos DD/MM/YYYY e leitura de datas da API
 ├─ notify.ts             # notifyApiError (sonner)
 ├─ tokens.ts             # valores do Design System
@@ -116,15 +167,13 @@ Se receber um arquivo novo da marca, remova o fundo branco e gere a versão bran
 
 ## Login único e papéis
 
-Há **uma única tela de login** (e-mail corporativo + senha) e **dois tipos de conta**; o perfil vem da conta, não de uma aba:
+Há **uma única tela de login** (e-mail corporativo + senha); o perfil vem da resposta autenticada do backend:
 
 - **Administrador:** vê tudo — Fila de atendimento, Relatórios, **Cadastro de usuários** (`POST /api/usuarios`, lista em
   `GET /api/usuarios?grupoEmpresaId=`, grupos em `GET /api/grupos-empresa`) e também abre chamados.
-- **Membro da equipe (agente):** Fila, detalhe do chamado (assumir, repassar, notas internas) e Relatórios. Não vê o cadastro de usuários.
+- **Membro da equipe (Agente/Supervisor):** Fila, detalhe e Relatórios. Supervisor é preservado como papel distinto, sem ganhar o menu exclusivo de Admin.
 
-Enquanto o login é simulado (`src/auth.ts`): e-mail que **começa com "admin"** (ex.: `admin@atoscapital.com`) entra como administrador;
-qualquer outro (ex.: `ana.souza@atoscapital.com`) entra como equipe. Com o SSO o papel virá do token. A autorização real é sempre da API
-(papel no token); esconder uma tela no front não protege nada sozinho.
+A autorização real continua sendo feita pela API; esconder uma tela no frontend não substitui RBAC no servidor.
 
 O código ainda tem os ramos da visão de cliente (`role === 'cliente'`), mas nenhum login leva a eles; podem ser removidos quando a equipe confirmar.
 
@@ -139,8 +188,8 @@ O código ainda tem os ramos da visão de cliente (`role === 'cliente'`), mas ne
 
 ## O que ainda é só interface
 
-- "Manter conectado", "Esqueci minha senha", "Exportar" e "Atualizar" são visuais.
+- "Esqueci minha senha", "Exportar" e "Atualizar" são visuais. "Lembrar acesso" fica marcado e desabilitado:
+  a duração do acesso persistente é definida pelo cookie do backend, sem armazenamento de senha no navegador.
 - Seleção de colunas persistida (`<ColumnSelector/>` do template de tela) não foi feita.
 - Notificações e leitura vivem no estado local; numa integração real viriam do webhook
   de eventos (seção 2.3 do termo).
-- Autenticação é simulada (o SSO/JWT real entra na seção 6 do termo).

@@ -48,9 +48,9 @@ const pt = {
     queue: 'Fila de atendimento', myTickets: 'Meus chamados', reports: 'Relatórios', users: 'Cadastro de usuários',
     secure: 'Ambiente seguro', themeDark: 'Tema escuro', themeLight: 'Tema claro', logout: 'Sair',
     closeMenu: 'Fechar menu', openMenu: 'Abrir menu', breadcrumbRoot: 'Central de atendimento',
-    captions: { cliente: 'Sincronizado via SSO', agente: 'Equipe de suporte', admin: 'Administração do sistema' },
-    roleLabels: { cliente: 'Cliente Atos Capital', agente: 'Equipe de suporte', admin: 'Administrador' },
-    context: { agente: 'Equipe de suporte', admin: 'Administração' },
+    captions: { cliente: 'Sincronizado via SSO', agente: 'Equipe de suporte', supervisor: 'Supervisão', admin: 'Administração do sistema' },
+    roleLabels: { cliente: 'Cliente Atos Capital', agente: 'Equipe de suporte', supervisor: 'Supervisão', admin: 'Administrador' },
+    context: { agente: 'Equipe de suporte', supervisor: 'Supervisão', admin: 'Administração' },
   },
   notifications: {
     title: 'Notificações', markAll: 'Marcar tudo como lido', empty: 'Nenhuma notificação.',
