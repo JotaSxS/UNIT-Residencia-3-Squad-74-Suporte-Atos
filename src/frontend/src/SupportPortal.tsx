@@ -96,7 +96,6 @@ export default function SupportPortal() {
   };
   const logout = () => { clearToken(); setSession(null); setShowNewTicket(false); navigate('/', { replace: true }); };
 
-  const role = session?.role;
   const mainRef = useRef<HTMLElement>(null);
   // Troca de rota: fecha o menu, mostra o carregamento e leva o foco para o conteúdo (leitores de tela e teclado).
   useEffect(() => {
@@ -111,48 +110,48 @@ export default function SupportPortal() {
   return (
     <ThemeProvider theme={theme}>
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={DAYJS_LOCALE[lang]} localeText={PICKER_TEXT[lang]}>
-      <CssBaseline />
-      {!session ? (
-        <Routes>
-          <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />} />
-          <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
-        </Routes>
-      ) : (
-        <Box sx={{ display: 'flex', height: '100vh', '@supports (height: 100dvh)': { height: '100dvh' }, overflow: 'hidden', bgcolor: 'background.default' }}>
-          <Box component="a" href="#main-content"
-            sx={{ ...visuallyHidden, '&:focus': { position: 'fixed', top: 8, left: 8, zIndex: 2000, width: 'auto', height: 'auto', margin: 0, clip: 'auto', overflow: 'visible', p: '10px 16px', borderRadius: 1, bgcolor: 'background.paper', color: 'text.primary', fontWeight: 600, border: 2, borderColor: 'primary.main' } }}>
-            {tr('a11y.skipToContent')}
-          </Box>
-          <Sidebar
-            session={session} onLogout={logout}
-            themeMode={themeMode} setThemeMode={setThemeMode}
-            mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)}
-          />
-          <Box sx={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <TopBar
-              session={session} themeMode={themeMode} notifications={notifications} unreadCount={unreadCount}
-              onOpenNav={() => setMobileNavOpen(true)} onMarkAllRead={markAllRead} onMarkOneRead={markOneRead}
-            />
-            <Box component="main" id="main-content" ref={mainRef} tabIndex={-1}
-              sx={{ flex: 1, minWidth: 0, px: { xs: 2, sm: 2.5, md: 5 }, py: { xs: 2.5, md: 4 }, outline: 'none', overflowWrap: 'break-word' }}>
-              {loadingView ? (
-                <ViewSkeleton />
-              ) : (
-                <Routes>
-                  <Route path="/chamados" element={<TicketList tickets={tickets} role={session.role} user={session} onOpen={(id) => navigate(`/chamados/${id}`)} onNew={() => setShowNewTicket(true)} />} />
-                  <Route path="/chamados/:id" element={<TicketDetailRoute tickets={tickets} session={session} onUpdate={updateTicket} />} />
-                  <Route path="/relatorios" element={<Reports tickets={tickets} role={session.role} user={session} />} />
-                  <Route path="/usuarios" element={<RoleRoute allow={['admin']} role={session.role}><UserAdmin /></RoleRoute>} />
-                  <Route path="*" element={<Navigate to="/chamados" replace />} />
-                </Routes>
-              )}
+        <CssBaseline />
+        {!session ? (
+          <Routes>
+            <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />} />
+            <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
+          </Routes>
+        ) : (
+          <Box sx={{ display: 'flex', height: '100vh', '@supports (height: 100dvh)': { height: '100dvh' }, overflow: 'hidden', bgcolor: 'background.default' }}>
+            <Box component="a" href="#main-content"
+              sx={{ ...visuallyHidden, '&:focus': { position: 'fixed', top: 8, left: 8, zIndex: 2000, width: 'auto', height: 'auto', margin: 0, clip: 'auto', overflow: 'visible', p: '10px 16px', borderRadius: 1, bgcolor: 'background.paper', color: 'text.primary', fontWeight: 600, border: 2, borderColor: 'primary.main' } }}>
+              {tr('a11y.skipToContent')}
             </Box>
+            <Sidebar
+              session={session} onLogout={logout}
+              themeMode={themeMode} setThemeMode={setThemeMode}
+              mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)}
+            />
+            <Box sx={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              <TopBar
+                session={session} themeMode={themeMode} notifications={notifications} unreadCount={unreadCount}
+                onOpenNav={() => setMobileNavOpen(true)} onMarkAllRead={markAllRead} onMarkOneRead={markOneRead}
+              />
+              <Box component="main" id="main-content" ref={mainRef} tabIndex={-1}
+                sx={{ flex: 1, minWidth: 0, px: { xs: 2, sm: 2.5, md: 5 }, py: { xs: 2.5, md: 4 }, outline: 'none', overflowWrap: 'break-word' }}>
+                {loadingView ? (
+                  <ViewSkeleton />
+                ) : (
+                  <Routes>
+                    <Route path="/chamados" element={<TicketList tickets={tickets} role={session.role} user={session} onOpen={(id) => navigate(`/chamados/${id}`)} onNew={() => setShowNewTicket(true)} />} />
+                    <Route path="/chamados/:id" element={<TicketDetailRoute tickets={tickets} session={session} onUpdate={updateTicket} />} />
+                    <Route path="/relatorios" element={<Reports tickets={tickets} role={session.role} user={session} />} />
+                    <Route path="/usuarios" element={<RoleRoute allow={['admin']} role={session.role}><UserAdmin /></RoleRoute>} />
+                    <Route path="*" element={<Navigate to="/chamados" replace />} />
+                  </Routes>
+                )}
+              </Box>
+            </Box>
+            {showNewTicket && (session.role === 'cliente' || session.role === 'admin') && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
           </Box>
-          {showNewTicket && session.role === 'cliente' && <NewTicketModal user={session} onClose={() => setShowNewTicket(false)} onCreate={createTicket} />}
-        </Box>
-      )}
-      {/* Notificações: sonner (toast.success / toast.error / toast.warning). */}
-      <Toaster position="bottom-center" richColors closeButton theme={themeMode} toastOptions={{ style: { fontSize: 14 } }} />
+        )}
+        {/* Notificações: sonner (toast.success / toast.error / toast.warning). */}
+        <Toaster position="bottom-center" richColors closeButton theme={themeMode} toastOptions={{ style: { fontSize: 14 } }} />
       </LocalizationProvider>
     </ThemeProvider>
   );
