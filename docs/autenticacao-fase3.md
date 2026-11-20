@@ -74,7 +74,7 @@ Nenhum logger novo registra senha, token ou hash de convite. O comando usa mensa
 
 Não há seed, atualização de senhas, criação de contas ou alteração de registros existentes na migration. As credenciais existentes continuam com os valores anteriores. O comando de bootstrap depende do esquema atualizado e não tenta atualizá-lo.
 
-**A migration foi aplicada somente nos bancos temporários de teste. Não foi executada no banco real.** A aplicação em ambiente real permanece pendente de autorização. Para ferramentas EF, a factory existente exige `ConnectionStrings__DefaultConnection`; ela não carrega user-secrets, conforme documentado na auditoria anterior. Downgrade remove informações de convite e o marcador: não executar como mecanismo de recuperação.
+**Na validação desta fase, a migration foi aplicada somente nos bancos temporários de teste. Não foi executada no banco real.** A aplicação em ambiente real permanece pendente de autorização. Atualização da Etapa A do setup: a factory agora pertence à API e usa os provedores da aplicação; User Secrets exigem Development explícito no EF (`-- --environment Development`). `ConnectionStrings__DefaultConnection` continua tendo prioridade sobre User Secrets. Consulte o [README atual](../README.md#conexão-da-aplicação-e-do-ef-core). Downgrade remove informações de convite e o marcador: não executar como mecanismo de recuperação.
 
 ## Validação executada
 

@@ -6,7 +6,8 @@ a chamados, notas internas, notificações e relatórios. A **abertura de chamad
 
 ## Como rodar
 
-Execute os comandos abaixo na raiz do repositório. Requer Node.js 18+ e .NET SDK 10.
+O [README principal](../../README.md) é a fonte oficial do setup. Na raiz, `setup.ps1` prepara o ambiente interativamente e `start.ps1` inicia os serviços; `-CheckOnly` verifica pré-requisitos sem alterações. Os comandos abaixo são a alternativa manual.
+Execute os comandos abaixo na raiz do repositório, após preparar banco, schema, conexão e autenticação. Recomenda-se Node.js 22 LTS e SDK .NET 10 estável; SDK 10 ou superior, incluindo Preview, é aceito após validação de compatibilidade. Os runtimes .NET/ASP.NET Core 10 continuam necessários.
 O certificado de desenvolvimento fica no perfil do Windows, fora do Git; nunca copie sua chave para o projeto.
 
 ```powershell
@@ -23,7 +24,7 @@ if (!(Test-Path (Join-Path $certDir 'supportatos-frontend.pem')) -and
 Backend, em um terminal (encerre primeiro a instância antiga para recarregar CORS/CSRF):
 
 ```powershell
-dotnet run --project .\src\backend\src\SupportAtos.Api\SupportAtos.Api.csproj --launch-profile https -- --urls https://localhost:7099
+dotnet run --project .\src\backend\src\SupportAtos.Api\SupportAtos.Api.csproj --launch-profile https
 ```
 
 Frontend, em outro terminal:

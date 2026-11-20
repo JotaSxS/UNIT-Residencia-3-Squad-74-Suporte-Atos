@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SupportAtos.Api\SupportAtos.Api.csproj" />
+    <ProjectReference Include="..\..\tools\SupportAtos.DevSetup\SupportAtos.DevSetup.csproj" />
   </ItemGroup>
 
 </Project>

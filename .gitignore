@@ -1,4 +1,7 @@
 
 .vs/
 
+# Backups/canais privados do setup ficam fora do checkout; protecao adicional.
+*.dpapi
+
 .vs/
