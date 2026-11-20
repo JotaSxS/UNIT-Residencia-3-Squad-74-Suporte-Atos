@@ -39,7 +39,12 @@ public class JwtTokenGerador : ITokenGerador
         rsa.ImportFromPem(_authSettings.PrivateKeyPem);
         var chave = new RsaSecurityKey(rsa);
 
-        var credenciais = new SigningCredentials(chave, SecurityAlgorithms.RsaSha256);
+        var credenciais = new SigningCredentials(chave, SecurityAlgorithms.RsaSha256)
+        {
+            // A RSA pertence somente a esta emissão. Um provider em cache poderia
+            // reutilizá-la depois do Dispose, inclusive em outro scope do gerador.
+            CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+        };
 
         var claims = new List<Claim>
         {
