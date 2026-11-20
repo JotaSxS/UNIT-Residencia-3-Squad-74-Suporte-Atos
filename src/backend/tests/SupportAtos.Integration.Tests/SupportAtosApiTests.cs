@@ -129,6 +129,17 @@ public class SupportAtosApiTests : IClassFixture<TestWebAppFactory>
     }
 
     [Fact]
+    public async Task HealthCheckReady_DeveRetornar200EStatusHealthy()
+    {
+        var resposta = await _cliente.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+
+        var corpo = await resposta.Content.ReadAsStringAsync();
+        Assert.Contains("Healthy", corpo);
+        Assert.Contains("database", corpo);
+    }
+
+    [Fact]
     public async Task CriarChamado_SemApiKey_DeveRetornar401()
     {
         var corpo = CorpoPortal(NovoId("portal"), NovoId("grupo"));

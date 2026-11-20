@@ -1,5 +1,8 @@
 # SupportAtos
 
+[![CI](https://github.com/FluixIT/system-atos-squad74/actions/workflows/ci.yml/badge.svg)](https://github.com/FluixIT/system-atos-squad74/actions/workflows/ci.yml)
+[![E2E Playwright](https://github.com/FluixIT/system-atos-squad74/actions/workflows/e2e.yml/badge.svg)](https://github.com/FluixIT/system-atos-squad74/actions/workflows/e2e.yml)
+
 Sistema de suporte com portal do cliente e painel de atendimento.
 
 Stack:
