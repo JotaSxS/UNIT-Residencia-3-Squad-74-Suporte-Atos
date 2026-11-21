@@ -3,7 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { Session } from './types';
-import './i18n';
+import i18n from './i18n';
 import SupportPortal from './SupportPortal';
 
 const auth = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ vi.mock('./auth', () => ({
   subscribeAuth: (listener: () => void) => { auth.listeners.add(listener); return () => auth.listeners.delete(listener); },
   restoreSession: auth.restore,
   logout: vi.fn(),
+  ativarFuncionario: vi.fn(),
 }));
 vi.mock('./components/Login', () => ({ default: () => <div>Login público</div> }));
 vi.mock('./components/Layout', () => ({ Sidebar: () => <div>Menu protegido</div>, TopBar: () => null }));
@@ -23,7 +24,8 @@ vi.mock('./components/TicketList', () => ({ default: () => <div>Chamados protegi
 vi.mock('./components/TicketDetail', () => ({ default: () => null }));
 vi.mock('./components/Reports', () => ({ default: () => null }));
 vi.mock('./components/UserAdmin', () => ({ default: () => <div>Admin protegido</div> }));
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('pt');
   auth.state = { status: 'restoring', session: null };
   auth.listeners.clear(); auth.restore.mockClear();
 });
@@ -40,6 +42,14 @@ it('não expõe login nem telas protegidas enquanto restaura; conserva a rota ap
   expect(screen.getByText('Menu protegido')).toBeInTheDocument();
   expect(await screen.findByText('Admin protegido')).toBeInTheDocument();
 });
+it('abre /ativar sem sessão, sem passar pelo login', async () => {
+  auth.state = { status: 'anonymous', session: null };
+  render(<MemoryRouter initialEntries={['/ativar?token=convite']}><SupportPortal /></MemoryRouter>);
+
+  expect(await screen.findByRole('heading', { name: 'Defina sua primeira senha' })).toBeInTheDocument();
+  expect(screen.queryByText('Login público')).not.toBeInTheDocument();
+});
+
 it('falha na restauração mostra somente o login', () => {
   render(<MemoryRouter initialEntries={['/usuarios']}><SupportPortal /></MemoryRouter>);
   act(() => {
@@ -56,6 +66,12 @@ it.each(['/usuarios', '/rota-inexistente', '/chamados/inexistente'])(
     render(<MemoryRouter initialEntries={[path]}><SupportPortal /></MemoryRouter>);
     expect(await screen.findByText('Chamados protegidos')).toBeInTheDocument();
     expect(screen.queryByText('Admin protegido')).not.toBeInTheDocument();
-    expect(screen.queryByText('Login p�blico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Login público')).not.toBeInTheDocument();
   },
 );
+
+it('exibe ativacao mesmo com restauracao pendente', async () => {
+  render(<MemoryRouter initialEntries={['/ativar#token=convite']}><SupportPortal /></MemoryRouter>);
+  expect(await screen.findByRole('heading', { name: 'Defina sua primeira senha' })).toBeInTheDocument();
+  expect(screen.queryByText('Login público')).not.toBeInTheDocument();
+});

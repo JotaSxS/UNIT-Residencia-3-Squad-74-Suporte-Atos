@@ -13,9 +13,13 @@ vi.mock('../auth', () => ({ login: vi.fn() }));
 vi.mock('../notify', () => ({ notifyApiError: vi.fn() }));
 beforeAll(async () => { await i18n.changeLanguage('pt'); });
 beforeEach(() => vi.clearAllMocks());
-function setup() {
+function setup(activationSuccess = false) {
   const onLogin = vi.fn();
-  render(<ThemeProvider theme={buildTheme('light')}><LoginScreen onLogin={onLogin} themeMode="light" setThemeMode={vi.fn()} /></ThemeProvider>);
+  render(
+    <ThemeProvider theme={buildTheme('light')}>
+      <LoginScreen onLogin={onLogin} themeMode="light" setThemeMode={vi.fn()} activationSuccess={activationSuccess} />
+    </ThemeProvider>,
+  );
   return onLogin;
 }
 async function submit() {
@@ -25,6 +29,11 @@ async function submit() {
   await user.click(screen.getByRole('button', { name: 'Entrar' }));
 }
 describe('LoginScreen real', () => {
+  it('mostra a mensagem de ativação concluída quando veio da página pública', () => {
+    setup(true);
+    expect(screen.getByText('Ativação concluída. Entre com seu e-mail e a senha que você acabou de definir.')).toBeInTheDocument();
+  });
+
   it('envia a senha e repassa a identidade recebida, inclusive papel não Admin', async () => {
     const session = { usuarioId: 9, role: 'agente' as const, nome: 'Pessoa do servidor', email: 'admin@qa.invalid', empresa: null };
     vi.mocked(login).mockResolvedValue(session);

@@ -12,6 +12,8 @@ export const TITULO_MAX = 200;
 /* ---------------------------------------------------------------------- */
 
 export type PapelApi = 'Cliente' | 'Agente' | 'Supervisor' | 'Admin';
+/** Papéis de funcionários internos: podem ser cadastrados sem grupo de empresa e recebem convite de ativação. */
+export type PapelInterno = Exclude<PapelApi, 'Cliente'>;
 
 export interface SlaCategoriaDto {
   produto: string;
@@ -39,25 +41,40 @@ export interface NovoChamadoInput {
   descricao: string;
 }
 
-export interface GrupoEmpresaDto {
-  id: number;
-  nome: string;
-  tipo: string;
-}
-
 export interface UsuarioDto {
   id: number;
   nome: string;
   email: string;
-  grupoEmpresaId: number;
+  grupoEmpresaId: number | null;
   grupoEmpresaNome: string | null;
   papel: PapelApi;
+}
+
+/** Resposta de POST /api/usuarios para Admin, Supervisor e Agente (convite de ativação). */
+export interface ConviteFuncionarioDto extends UsuarioDto {
+  papel: PapelInterno;
+  tokenAtivacao: string;
+  expiraEm: string;
+}
+
+/** Distingue a resposta de convite (funcionário interno) da resposta de cliente. */
+export function isConviteFuncionario(
+  usuario: UsuarioDto | ConviteFuncionarioDto,
+): usuario is ConviteFuncionarioDto {
+  return usuario !== null && typeof usuario === 'object' && 'tokenAtivacao' in usuario
+    && typeof usuario.tokenAtivacao === 'string' && usuario.tokenAtivacao.trim().length > 0
+    && Number.isInteger(usuario.id) && usuario.id > 0
+    && typeof usuario.nome === 'string' && usuario.nome.trim().length > 0
+    && 'expiraEm' in usuario && typeof usuario.expiraEm === 'string'
+    && Number.isFinite(Date.parse(usuario.expiraEm))
+    && ['Admin', 'Supervisor', 'Agente'].includes(usuario.papel);
 }
 
 export interface NovoUsuarioInput {
   nome: string;
   email: string;
-  grupoEmpresaId: number;
+  /** Obrigatório apenas para Cliente; funcionários internos enviam null. */
+  grupoEmpresaId: number | null;
   papel: PapelApi;
 }
 
@@ -108,13 +125,12 @@ export const criarChamado = ({ titulo, produto, categoria, descricao }: NovoCham
 /* Administração de usuários (perfil Admin)                                */
 /* ---------------------------------------------------------------------- */
 
-export const listarGruposEmpresa = () => request<GrupoEmpresaDto[]>('/api/grupos-empresa');
-
 export const listarUsuariosDoGrupo = (grupoEmpresaId: number) =>
   request<UsuarioDto[]>(`/api/usuarios?grupoEmpresaId=${encodeURIComponent(grupoEmpresaId)}`);
 
+/** Cliente retorna UsuarioDto; funcionário interno retorna ConviteFuncionarioDto. */
 export const cadastrarUsuario = ({ nome, email, grupoEmpresaId, papel }: NovoUsuarioInput) =>
-  request<UsuarioDto>('/api/usuarios', {
+  request<UsuarioDto | ConviteFuncionarioDto>('/api/usuarios', {
     method: 'POST',
     body: { nome: nome.trim(), email: email.trim().toLowerCase(), grupoEmpresaId, papel },
   });

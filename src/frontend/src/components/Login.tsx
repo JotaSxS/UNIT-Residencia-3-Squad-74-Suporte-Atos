@@ -1,7 +1,7 @@
 // Tela de login única. Existem dois tipos de conta (administrador e membro da equipe); o perfil vem da conta, não de uma aba.
 import React, { useState } from 'react';
 import {
-  Box, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, InputAdornment, Link, Paper, Stack, Typography,
+  Alert, Box, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, InputAdornment, Link, Paper, Stack, Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
@@ -27,9 +27,11 @@ interface LoginScreenProps {
   onLogin: (session: Session) => void;
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  /** Mensagem exibida depois que o funcionário conclui a ativação da credencial. */
+  activationSuccess?: boolean;
 }
 
-export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, themeMode, setThemeMode, activationSuccess = false }: LoginScreenProps) {
   const { t } = useTranslation();
   const { atos } = useTheme();
   const [loading, setLoading] = useState(false);
@@ -91,6 +93,8 @@ export default function LoginScreen({ onLogin, themeMode, setThemeMode }: LoginS
               <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: { xs: 14, sm: 16 } }}>{t('login.subtitle')}</Typography>
             </Box>
           </Stack>
+
+          {activationSuccess && <Alert severity="success" sx={{ mb: 3 }}>{t('activation.success')}</Alert>}
 
           <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={3}>

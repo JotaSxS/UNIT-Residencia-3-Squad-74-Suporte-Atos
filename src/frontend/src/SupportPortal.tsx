@@ -20,6 +20,7 @@ import TicketList, { NewTicketModal } from './components/TicketList';
 import TicketDetail from './components/TicketDetail';
 import Reports from './components/Reports';
 import UserAdmin from './components/UserAdmin';
+import Activate from './components/Activate';
 import type { AppNotification, Role, Session, ThemeMode, Ticket } from './types';
 
 // Textos dos seletores de data (x-date-pickers) por idioma da interface.
@@ -64,6 +65,7 @@ export default function SupportPortal() {
   const lang: Lang = (LANGS as readonly string[]).includes(i18nInstance.language) ? (i18nInstance.language as Lang) : 'pt';
   const location = useLocation();
   const navigate = useNavigate();
+  const activationSuccess = Boolean((location.state as { activationSuccess?: boolean } | null)?.activationSuccess);
   const [themeMode, changeTheme] = useState<ThemeMode>(() => {
     try { return localStorage.getItem('atos.theme') === 'dark' ? 'dark' : 'light'; }
     catch { return 'light'; }
@@ -116,11 +118,16 @@ export default function SupportPortal() {
     <ThemeProvider theme={theme}>
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={DAYJS_LOCALE[lang]} localeText={PICKER_TEXT[lang]}>
         <CssBaseline />
-        {authStatus === 'restoring' ? (
+        {location.pathname === '/ativar' ? (
+          <Routes>
+            <Route path="/ativar" element={<Activate />} />
+          </Routes>
+        ) : authStatus === 'restoring' ? (
           <Box role="status" aria-label={tr('common.loading')} sx={{ p: 4 }}><ViewSkeleton /></Box>
         ) : !session ? (
           <Routes>
-            <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />} />
+            <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode}
+              activationSuccess={activationSuccess} />} />
             <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
           </Routes>
         ) : (

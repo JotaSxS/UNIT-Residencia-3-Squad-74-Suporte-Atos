@@ -205,3 +205,29 @@ describe('autenticação real em memória', () => {
     expect(await request).toMatchObject({ status: 401 });
   });
 });
+
+// Exerce o transporte real de cadastro: o teste de tela substitui essa funcao por mock.
+it.each(['Admin', 'Supervisor', 'Agente'] as const)('cadastro %s envia JSON normalizado e grupo nulo com Bearer', async (papel) => {
+  await loggedIn();
+  const convite = { id: 9, nome: 'Maria', email: 'maria@atos.com', grupoEmpresaId: null,
+    grupoEmpresaNome: null, papel, tokenAtivacao: 'synthetic-invite', expiraEm: '2026-11-21T12:00:00Z' };
+  const storageAntes = [JSON.stringify(localStorage), JSON.stringify(sessionStorage)];
+  fetchMock.mockResolvedValueOnce(json(convite, 201));
+  expect(await api.cadastrarUsuario({ nome: ' Maria ', email: ' MARIA@ATOS.COM ', grupoEmpresaId: null, papel })).toEqual(convite);
+  expect(fetchMock).toHaveBeenCalledWith('https://localhost:7099/api/usuarios', expect.objectContaining({
+    method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer access-a' }),
+    body: JSON.stringify({ nome: 'Maria', email: 'maria@atos.com', grupoEmpresaId: null, papel }),
+  }));
+  expect([JSON.stringify(localStorage), JSON.stringify(sessionStorage)]).toEqual(storageAntes);
+});
+
+it('ativacao usa POST sem cache nem referrer, sem alterar sessao', async () => {
+  const anterior = auth.getAuthState();
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+  await auth.ativarFuncionario({ token: 'synthetic-invite', senha: 'senha-segura-123' });
+  expect(fetchMock).toHaveBeenCalledWith('https://localhost:7099/api/auth/ativar', expect.objectContaining({
+    method: 'POST', cache: 'no-store', referrerPolicy: 'no-referrer',
+    body: JSON.stringify({ token: 'synthetic-invite', senha: 'senha-segura-123' }),
+  }));
+  expect(auth.getAuthState()).toBe(anterior);
+});

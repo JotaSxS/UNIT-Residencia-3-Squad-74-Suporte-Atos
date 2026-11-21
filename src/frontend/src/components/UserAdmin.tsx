@@ -1,178 +1,145 @@
-// Administração: cadastro de usuários (POST /api/usuarios) e lista dos usuários do grupo selecionado.
-// Tudo vem da API real; exige token com perfil Admin. Formulário: react-hook-form + Yup (erros em LineErrorForm).
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Box, Button, Chip, CircularProgress, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, Typography,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+// Administração: cadastro de funcionários internos (POST /api/usuarios).
+// Nesta tela, Admin, Supervisor e Agente são cadastrados sem grupo de empresa
+// e a API devolve um convite de ativação (tokenAtivacao + expiraEm), tratado na Etapa 2.
+import React, { useRef, useState } from 'react';
+import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
-import { PersonAddAlt1, Refresh } from '@mui/icons-material';
-import { ApiError, cadastrarUsuario, listarGruposEmpresa, listarUsuariosDoGrupo } from '../api';
-import type { GrupoEmpresaDto, PapelApi, UsuarioDto } from '../api';
-import i18n from '../i18n';
+import { ContentCopy, PersonAddAlt1 } from '@mui/icons-material';
+import { ApiError, cadastrarUsuario, isConviteFuncionario } from '../api';
+import type { ConviteFuncionarioDto, PapelInterno } from '../api';
+import { formatDateTime, parseApiDate } from '../dates';
 import { notifyApiError } from '../notify';
 import FormTextField from './form/FormTextField';
 import { Eyebrow } from './ui';
 
-const PAPEIS: PapelApi[] = ['Cliente', 'Agente', 'Supervisor', 'Admin'];
+const PAPEIS: PapelInterno[] = ['Agente', 'Supervisor', 'Admin'];
 
 const userSchema = yup.object({
-  grupoId: yup.string().required('validation.required'),
-  nome: yup.string().trim().required('validation.required'),
-  email: yup.string().trim().required('validation.required').email('validation.email'),
-  papel: yup.string().required('validation.required'),
+  nome: yup.string().trim().required('validation.required').max(150, 'validation.maxLength'),
+  email: yup.string().trim().required('validation.required').email('validation.email').max(255, 'validation.maxLength'),
+  papel: yup.string().oneOf(PAPEIS, 'validation.required').required('validation.required'),
 });
 type UserForm = yup.InferType<typeof userSchema>;
 
 export default function UserAdmin() {
-  const { atos } = useTheme();
   const { t } = useTranslation();
 
-  const [grupos, setGrupos] = useState<GrupoEmpresaDto[]>([]);
-  const [loadingGrupos, setLoadingGrupos] = useState(true);
-  const [gruposError, setGruposError] = useState(false);
-
-  const [usuarios, setUsuarios] = useState<UsuarioDto[]>([]);
-  const [loadingUsuarios, setLoadingUsuarios] = useState(false);
-
-  const { control, handleSubmit, reset, setError, setValue, watch, formState: { isSubmitting } } = useForm<UserForm>({
+  const { control, handleSubmit, reset, setError, watch, formState: { isSubmitting } } = useForm<UserForm>({
     resolver: yupResolver(userSchema),
     mode: 'onTouched',
-    defaultValues: { grupoId: '', nome: '', email: '', papel: 'Cliente' },
+    defaultValues: { nome: '', email: '', papel: 'Agente' },
   });
-  const grupoId = watch('grupoId');
-  const papel = watch('papel') as PapelApi;
-
-  const carregarGrupos = useCallback(() => {
-    setLoadingGrupos(true);
-    setGruposError(false);
-    listarGruposEmpresa()
-      .then((lista) => {
-        setGrupos(lista);
-        if (lista.length > 0) setValue('grupoId', String(lista[0].id));
-      })
-      .catch((e: unknown) => { setGruposError(true); notifyApiError(e, i18n.t('users.loadGroupsError')); })
-      .finally(() => setLoadingGrupos(false));
-  }, [setValue]);
-
-  const carregarUsuarios = useCallback((id: number) => {
-    setLoadingUsuarios(true);
-    listarUsuariosDoGrupo(id)
-      .then(setUsuarios)
-      .catch((e: unknown) => { setUsuarios([]); notifyApiError(e, i18n.t('users.loadUsersError')); })
-      .finally(() => setLoadingUsuarios(false));
-  }, []);
-
-  useEffect(carregarGrupos, [carregarGrupos]);
-  useEffect(() => {
-    if (grupoId) carregarUsuarios(Number(grupoId));
-    else setUsuarios([]);
-  }, [grupoId, carregarUsuarios]);
+  const papel = watch('papel');
+  const [convite, setConvite] = useState<ConviteFuncionarioDto | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const linkRef = useRef<HTMLInputElement>(null);
+  const inviteLink = convite
+    ? `${window.location.origin}/ativar#token=${encodeURIComponent(convite.tokenAtivacao)}`
+    : '';
 
   const onSubmit = async (data: UserForm) => {
+    // Nao substituir o unico convite antes da confirmacao explicita do administrador.
+    if (convite) return;
+    setCopyStatus('idle');
     try {
-      const criado = await cadastrarUsuario({ nome: data.nome, email: data.email, grupoEmpresaId: Number(data.grupoId), papel: data.papel as PapelApi });
+      const criado = await cadastrarUsuario({
+        nome: data.nome,
+        email: data.email,
+        grupoEmpresaId: null,
+        papel: data.papel as PapelInterno,
+      });
+      if (!isConviteFuncionario(criado)) {
+        toast.error(t('users.unexpectedInvite'));
+        return;
+      }
       toast.success(t('users.created', { name: criado.nome }));
-      reset({ grupoId: data.grupoId, nome: '', email: '', papel: 'Cliente' });
-      carregarUsuarios(Number(data.grupoId));
+      reset({ nome: '', email: '', papel: data.papel });
+      setConvite(criado);
     } catch (err) {
       // 409: e-mail já cadastrado — mostra no próprio campo.
-      if (err instanceof ApiError && err.status === 409) setError('email', { type: 'server', message: 'users.emailExists' });
+      if (err instanceof ApiError && err.status === 409) setError('email', { type: 'server', message: t('users.emailExists') });
       else notifyApiError(err, t('users.createError'));
     }
   };
 
-  const grupoAtual = grupos.find((g) => String(g.id) === grupoId);
+  const copyInvite = async () => {
+    if (!inviteLink) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(inviteLink);
+      setCopyStatus('copied');
+    } catch {
+      // Mantém o campo selecionável para cópia manual quando a Clipboard API não está disponível.
+      setCopyStatus('error');
+      linkRef.current?.focus();
+      linkRef.current?.select();
+    }
+  };
 
   return (
-    <Box sx={{ maxWidth: 1152 }}>
+    <Box sx={{ maxWidth: 520 }}>
       <Box sx={{ mb: 3.5 }}>
         <Eyebrow>{t('users.eyebrow')}</Eyebrow>
         <Typography variant="h1">{t('users.title')}</Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>{t('users.subtitle')}</Typography>
       </Box>
 
-      {gruposError ? (
-        <Stack spacing={2} alignItems="flex-start">
-          <Typography color="text.secondary">{t('users.loadGroupsError')}</Typography>
-          <Button variant="outlined" startIcon={<Refresh />} onClick={carregarGrupos}>{t('common.tryAgain')}</Button>
-        </Stack>
-      ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(320px, 400px) 1fr' }, gap: 3, alignItems: 'start' }}>
-          <Paper variant="outlined" component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ p: 2.5 }}>
-            <Typography variant="h2" sx={{ mb: 2 }}>{t('users.newUser')}</Typography>
-            {loadingGrupos ? (
-              <Stack alignItems="center" spacing={1.5} sx={{ py: 5 }}>
-                <CircularProgress size={24} />
-                <Typography variant="body2" color="text.secondary">{t('users.loadingGroups')}</Typography>
-              </Stack>
-            ) : (
-              <Stack spacing={2}>
-                <FormTextField<UserForm> name="grupoId" control={control} select required fullWidth size="small" label={t('users.group')}>
-                  {grupos.map((g) => <MenuItem key={g.id} value={String(g.id)}>{g.nome}</MenuItem>)}
-                </FormTextField>
-                <FormTextField<UserForm> name="nome" control={control} required fullWidth size="small" autoComplete="off" label={t('users.name')} />
-                <FormTextField<UserForm> name="email" control={control} required fullWidth size="small" type="email" autoComplete="off"
-                  label={t('users.email')} placeholder={t('users.emailPlaceholder')} />
-                <FormTextField<UserForm> name="papel" control={control} select required fullWidth size="small" label={t('users.role')}>
-                  {PAPEIS.map((p) => <MenuItem key={p} value={p}>{t(`users.roles.${p}`)}</MenuItem>)}
-                </FormTextField>
-                {PAPEIS.includes(papel) && <Typography variant="caption" sx={{ mt: '-8px !important' }}>{t(`users.roleHints.${papel}`)}</Typography>}
-                <Button type="submit" variant="contained" disabled={isSubmitting || grupos.length === 0}
-                  startIcon={isSubmitting ? <CircularProgress size={14} color="inherit" /> : <PersonAddAlt1 />}>
-                  {isSubmitting ? t('users.submitting') : t('users.submit')}
+      <Stack spacing={2.5}>
+        <Paper variant="outlined" component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ p: 2.5 }}>
+          <Typography variant="h2" sx={{ mb: 2 }}>{t('users.newUser')}</Typography>
+          <Stack spacing={2}>
+            <FormTextField<UserForm> name="nome" control={control} required fullWidth size="small" autoComplete="off"
+              label={t('users.name')} errorParams={{ max: 150 }} />
+            <FormTextField<UserForm> name="email" control={control} required fullWidth size="small" type="email"
+              autoComplete="off" label={t('users.email')} placeholder={t('users.emailPlaceholder')} errorParams={{ max: 255 }} />
+            <FormTextField<UserForm> name="papel" control={control} select required fullWidth size="small" label={t('users.role')}>
+              {PAPEIS.map((p) => <MenuItem key={p} value={p}>{t(`users.roles.${p}`)}</MenuItem>)}
+            </FormTextField>
+            {papel && <Typography variant="caption" sx={{ mt: '-8px !important' }}>{t(`users.roleHints.${papel}`)}</Typography>}
+            <Typography variant="body2" color="text.secondary">{t('users.inviteHint')}</Typography>
+            <Button type="submit" variant="contained" disabled={isSubmitting || Boolean(convite)}
+              startIcon={isSubmitting ? <CircularProgress size={14} color="inherit" /> : <PersonAddAlt1 />}>
+              {isSubmitting ? t('users.submitting') : t('users.submit')}
+            </Button>
+          </Stack>
+        </Paper>
+
+        {convite && (
+          <Paper variant="outlined" sx={{ p: 2.5 }} aria-live="polite">
+            <Stack spacing={1.5}>
+              <Typography variant="h2">{t('users.inviteReadyTitle')}</Typography>
+              <Typography variant="body2">{t('users.inviteReady', { name: convite.nome })}</Typography>
+              <TextField
+                inputRef={linkRef}
+                value={inviteLink}
+                fullWidth
+                size="small"
+                label={t('users.inviteLink')}
+                InputProps={{ readOnly: true }}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <Typography variant="caption">
+                {t('users.inviteExpiresAt', { date: formatDateTime(parseApiDate(convite.expiraEm)) })}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">{t('users.inviteSingleUse')}</Typography>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Button type="button" variant="outlined" startIcon={<ContentCopy />} onClick={copyInvite}>
+                  {t('users.copyLink')}
                 </Button>
-                {grupos.length === 0 && <Typography variant="body2" color="text.secondary">{t('users.noGroups')}</Typography>}
+                {copyStatus === 'copied' && (
+                  <Typography role="status" variant="body2" color="success.main">{t('users.copied')}</Typography>
+                )}
               </Stack>
-            )}
-          </Paper>
-
-          <Paper variant="outlined" sx={{ p: 2.5, minWidth: 0 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-              <Box>
-                <Typography variant="h2">{t('users.groupUsers')}</Typography>
-                <Typography variant="caption">{grupoAtual ? grupoAtual.nome : t('users.selectGroup')}</Typography>
-              </Box>
-              <Button size="small" variant="outlined" startIcon={<Refresh />} disabled={!grupoId || loadingUsuarios}
-                onClick={() => grupoId && carregarUsuarios(Number(grupoId))}>
-                {t('common.refresh')}
-              </Button>
+              <Button type="button" onClick={() => { setConvite(null); setCopyStatus('idle'); }}>{t('users.dismissInvite')}</Button>
+              {copyStatus === 'error' && <Alert severity="warning">{t('users.copyError')}</Alert>}
             </Stack>
-
-            {loadingUsuarios ? (
-              <Stack alignItems="center" sx={{ py: 5 }}><CircularProgress size={24} /></Stack>
-            ) : usuarios.length === 0 ? (
-              <Typography sx={{ py: 5, textAlign: 'center', color: 'text.disabled' }}>{t('users.none')}</Typography>
-            ) : (
-              <Box sx={{ overflowX: 'auto' }}>
-                <Table size="small" aria-label={t('users.groupUsers')}>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: atos.tableHeaderBg }}>
-                      <TableCell>{t('users.table.name')}</TableCell>
-                      <TableCell>{t('users.table.email')}</TableCell>
-                      <TableCell>{t('users.table.role')}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {usuarios.map((u) => (
-                      <TableRow key={u.id}>
-                        <TableCell sx={{ fontWeight: 600 }}>{u.nome}</TableCell>
-                        <TableCell>{u.email}</TableCell>
-                        <TableCell><Chip size="small" variant="outlined" label={t(`users.roles.${u.papel}`, u.papel)} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
           </Paper>
-        </Box>
-      )}
+        )}
+      </Stack>
     </Box>
   );
 }

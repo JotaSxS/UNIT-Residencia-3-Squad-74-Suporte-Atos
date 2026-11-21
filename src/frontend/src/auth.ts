@@ -72,11 +72,17 @@ function accept(result: AuthResult, expectedEpoch: number): Session {
 async function authRequest(path: string, body?: unknown): Promise<Response> {
   const response = await send(`/api/auth/${path}`, {
     method: 'POST', credentials: 'include',
+    ...(path === 'ativar' ? { cache: 'no-store' as const, referrerPolicy: 'no-referrer' as const } : {}),
     headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) throw await responseError(response);
   return response;
+}
+
+/** Ativa um funcionário pelo convite de uso único. Reutiliza o mesmo transporte/CSRF do login. */
+export async function ativarFuncionario({ token, senha }: { token: string; senha: string }): Promise<void> {
+  await authRequest('ativar', { token, senha });
 }
 export function refreshSession(observedVersion = version): Promise<Session> {
   if (state.status === 'anonymous') return Promise.reject(unauthorized());
