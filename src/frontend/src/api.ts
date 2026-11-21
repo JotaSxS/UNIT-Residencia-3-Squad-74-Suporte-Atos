@@ -128,6 +128,17 @@ export const criarChamado = ({ titulo, produto, categoria, descricao }: NovoCham
 export const listarUsuariosDoGrupo = (grupoEmpresaId: number) =>
   request<UsuarioDto[]>(`/api/usuarios?grupoEmpresaId=${encodeURIComponent(grupoEmpresaId)}`);
 
+export interface FuncionarioListaDto {
+  id: number;
+  nome: string;
+  email: string;
+  papel: PapelApi;
+  situacao: 'Pendente' | 'Ativa' | 'Inativa';
+}
+
+/** Lista todos os funcionários internos (Admin, Supervisor, Agente) com situação da credencial. */
+export const listarFuncionarios = () => request<FuncionarioListaDto[]>('/api/usuarios/funcionarios');
+
 /** Cliente retorna UsuarioDto; funcionário interno retorna ConviteFuncionarioDto. */
 export const cadastrarUsuario = ({ nome, email, grupoEmpresaId, papel }: NovoUsuarioInput) =>
   request<UsuarioDto | ConviteFuncionarioDto>('/api/usuarios', {

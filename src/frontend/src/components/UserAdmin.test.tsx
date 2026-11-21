@@ -7,13 +7,13 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material/styles';
 import i18n from '../i18n';
 import { buildTheme } from '../theme';
-import { ApiError, cadastrarUsuario } from '../api';
+import { ApiError, cadastrarUsuario, listarFuncionarios } from '../api';
 import UserAdmin from './UserAdmin';
 
 // Só a rede é trocada por mocks; ApiError e o restante do cliente continuam os reais.
 vi.mock('../api', async (importOriginal) => {
   const original = await importOriginal<typeof import('../api')>();
-  return { ...original, cadastrarUsuario: vi.fn() };
+  return { ...original, cadastrarUsuario: vi.fn(), listarFuncionarios: vi.fn() };
 });
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -55,7 +55,7 @@ async function preencherFuncionario(u: ReturnType<typeof userEvent.setup>, papel
 
 describe('UserAdmin — cadastro de funcionários', () => {
   beforeAll(async () => { await i18n.changeLanguage('pt'); });
-  beforeEach(() => { vi.resetAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); vi.mocked(listarFuncionarios).mockResolvedValue([]); });
 
   it('oferece somente os papéis internos, sem Cliente', async () => {
     const u = userEvent.setup();
@@ -217,5 +217,42 @@ describe('UserAdmin — cadastro de funcionários', () => {
     await u.click(screen.getByRole('button', { name: 'Cadastrar funcionário' }));
     await waitFor(() => expect(screen.getByLabelText(/nome completo/i)).toHaveAccessibleDescription('Use no máximo 150 caracteres.'));
     expect(cadastrarUsuario).not.toHaveBeenCalled();
+  });
+
+  it('carrega ao abrir e atualiza mantendo convite e tabela com Agente selecionado', async () => {
+    const f = { id: 1, nome: 'Funcionario listado', email: 'f@test.invalid', papel: 'Agente' as const, situacao: 'Ativa' as const };
+    vi.mocked(listarFuncionarios).mockResolvedValue([f]);
+    vi.mocked(cadastrarUsuario).mockResolvedValue(CONVITE);
+    const u = userEvent.setup();
+    renderAdmin();
+    expect(await screen.findByText(f.nome)).toBeInTheDocument();
+    await preencherFuncionario(u);
+    await u.click(screen.getByRole('button', { name: 'Cadastrar funcionário' }));
+    expect(await screen.findByDisplayValue(inviteLink)).toBeInTheDocument();
+    await waitFor(() => expect(listarFuncionarios).toHaveBeenCalledTimes(2));
+    await u.click(screen.getByRole('button', { name: 'Atualizar' }));
+    await waitFor(() => expect(listarFuncionarios).toHaveBeenCalledTimes(3));
+    expect(screen.getByDisplayValue(inviteLink)).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('mostra vazio e permite recuperar erro de carregamento', async () => {
+    vi.mocked(listarFuncionarios).mockRejectedValueOnce(new ApiError('nao expor', 500)).mockResolvedValue([]);
+    const u = userEvent.setup();
+    renderAdmin();
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('api.generic'));
+    await u.click(screen.getByRole('button', { name: 'Atualizar' }));
+    expect(await screen.findByText(i18n.t('users.funcionariosVazios'))).toBeInTheDocument();
+  });
+
+  it('ignora resposta pendente apos desmontagem', async () => {
+    let resolve!: (value: []) => void;
+    vi.mocked(listarFuncionarios).mockReturnValue(new Promise<[]>((r) => { resolve = r; }));
+    const view = render(<ThemeProvider theme={buildTheme('light')}><UserAdmin /></ThemeProvider>);
+    expect(screen.getByText(i18n.t('users.funcionariosCarregando'))).toBeInTheDocument();
+    view.unmount();
+    resolve([]);
+    await Promise.resolve();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

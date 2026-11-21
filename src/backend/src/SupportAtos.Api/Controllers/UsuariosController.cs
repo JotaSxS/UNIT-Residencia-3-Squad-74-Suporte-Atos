@@ -1,7 +1,7 @@
+using SupportAtos.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SupportAtos.Api.Authentication;
-using SupportAtos.Application.Abstractions;
 using SupportAtos.Application.DTOs;
 using SupportAtos.Application.UseCases;
 using SupportAtos.Application.Services;
@@ -90,5 +90,20 @@ public class UsuariosController : ControllerBase
     {
         var usuarios = await _listarUsuariosPorGrupoUseCase.Handle(grupoEmpresaId, cancellationToken);
         return Ok(usuarios);
+    }
+
+    /// <summary>Lista todos os funcionários internos (Admin, Supervisor, Agente) com situação da credencial.</summary>
+    [HttpGet("funcionarios")]
+    [Authorize(Policy = AuthenticationSetup.PolicyEquipeAdmin)]
+    [ProducesResponseType(typeof(IReadOnlyList<FuncionarioDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListarFuncionarios(
+        [FromServices] ListarFuncionariosUseCase listarFuncionariosUseCase,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var funcionarios = await listarFuncionariosUseCase.Handle(cancellationToken);
+        return Ok(funcionarios);
     }
 }

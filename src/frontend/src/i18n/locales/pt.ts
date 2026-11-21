@@ -165,6 +165,13 @@ const pt = {
     created: 'Funcionário {{name}} cadastrado.',
     emailExists: 'E-mail já cadastrado.',
     createError: 'Não foi possível cadastrar o funcionário. Tente novamente.',
+    credentialStatus: 'Situação da credencial',
+    credentialStates: { Pendente: 'Pendente', Ativa: 'Ativa', Inativa: 'Inativa' },
+    funcionariosTitle: 'Funcionários cadastrados',
+    funcionariosCarregando: 'Carregando funcionários...',
+    funcionariosVazios: 'Nenhum funcionário cadastrado ainda.',
+    atualizar: 'Atualizar',
+    qtdeFuncionarios: '{{count}} funcionário(ns) cadastrado(s)',
   },
 };
 

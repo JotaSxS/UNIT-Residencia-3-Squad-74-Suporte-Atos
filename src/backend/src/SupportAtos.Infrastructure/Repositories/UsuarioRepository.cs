@@ -63,6 +63,14 @@ public class UsuarioRepository : IUsuarioRepository
                 cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Usuario>> ListarFuncionariosAsync(CancellationToken cancellationToken = default)
+        => await _context.Usuarios.AsNoTracking()
+            .Include(u => u.Credencial)
+            .Where(u => u.Papel == Domain.Enums.PapelUsuario.Admin
+                || u.Papel == Domain.Enums.PapelUsuario.Supervisor || u.Papel == Domain.Enums.PapelUsuario.Agente)
+            .OrderBy(u => u.Nome).ThenBy(u => u.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Usuario>> ListarAgentesAsync(CancellationToken cancellationToken = default)
         => await _context.Usuarios
             .Where(u => u.Papel == Domain.Enums.PapelUsuario.Agente

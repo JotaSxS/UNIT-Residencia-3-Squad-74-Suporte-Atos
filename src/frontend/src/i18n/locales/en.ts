@@ -165,6 +165,13 @@ const en: Locale = {
     created: 'Employee {{name}} registered.',
     emailExists: 'E-mail already registered.',
     createError: 'Could not register the employee. Please try again.',
+    credentialStatus: 'Credential status',
+    credentialStates: { Pendente: 'Pending', Ativa: 'Active', Inativa: 'Inactive' },
+    funcionariosTitle: 'Registered employees',
+    funcionariosCarregando: 'Loading employees...',
+    funcionariosVazios: 'No employees registered yet.',
+    atualizar: 'Refresh',
+    qtdeFuncionarios: '{{count}} employee(s) registered',
   },
 };
 

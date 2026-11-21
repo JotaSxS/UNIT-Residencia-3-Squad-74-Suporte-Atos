@@ -21,6 +21,31 @@ namespace SupportAtos.Integration.Tests;
 
 public class FuncionariosAtivacaoTests(TestWebAppFactory factory) : IClassFixture<TestWebAppFactory>
 {
+    [Theory]
+    [InlineData(PapelUsuario.Admin, HttpStatusCode.OK)]
+    [InlineData(PapelUsuario.Supervisor, HttpStatusCode.Forbidden)]
+    [InlineData(PapelUsuario.Agente, HttpStatusCode.Forbidden)]
+    [InlineData(PapelUsuario.Cliente, HttpStatusCode.Unauthorized)]
+    public async Task ListagemFuncionariosRespeitaPapel(PapelUsuario papel, HttpStatusCode esperado)
+    {
+        using var client = Client();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await UsuarioAutenticado(papel));
+        var response = await client.GetAsync("/api/usuarios/funcionarios");
+        Assert.Equal(esperado, response.StatusCode);
+        if (esperado == HttpStatusCode.OK) {
+            var json = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("senhaHash", json);
+            Assert.DoesNotContain("tokenAtivacao", json);
+        }
+    }
+
+    [Fact]
+    public async Task ListagemAnonimaRecebe401()
+    {
+        using var client = Client();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/usuarios/funcionarios")).StatusCode);
+    }
+
     private const string Senha = "Frase de teste fase tres 2026";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
         { Converters = { new JsonStringEnumConverter() } };

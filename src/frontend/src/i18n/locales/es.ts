@@ -164,7 +164,14 @@ const es: Locale = {
     copyError: 'No fue posible copiar automáticamente. Seleccione el enlace y cópielo manualmente.',
     created: 'Empleado {{name}} registrado.',
     emailExists: 'Correo electrónico ya registrado.',
-    createError: 'No fue posible registrar al empleado. Intente de nuevo.',
+    createError: 'No fue posible registrar empleado. Intente de nuevo.',
+    credentialStatus: 'Estado de la credencial',
+    credentialStates: { Pendente: 'Pendiente', Ativa: 'Activa', Inativa: 'Inactiva' },
+    funcionariosTitle: 'Empleados registrados',
+    funcionariosCarregando: 'Cargando empleados...',
+    funcionariosVazios: 'Todavía no hay empleados registrados.',
+    atualizar: 'Actualizar',
+    qtdeFuncionarios: '{{count}} empleado(s) registrado(s)',
   },
 };
 

@@ -307,6 +307,8 @@ public class AuthServiceTests
         public Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken = default)
             => Task.FromResult(_usuario is not null && _usuario.Email == email);
 
+        public Task<IReadOnlyList<Usuario>> ListarFuncionariosAsync(CancellationToken cancellationToken = default) => ListarAgentesAsync(cancellationToken);
+
         public Task<IReadOnlyList<Usuario>> ListarAgentesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<Usuario>>(System.Array.Empty<Usuario>());
 
@@ -398,6 +400,8 @@ public class AuthServiceTests
 
         public Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
+
+        public Task<IReadOnlyList<Usuario>> ListarFuncionariosAsync(CancellationToken cancellationToken = default) => ListarAgentesAsync(cancellationToken);
 
         public Task<IReadOnlyList<Usuario>> ListarAgentesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<Usuario>>(System.Array.Empty<Usuario>());

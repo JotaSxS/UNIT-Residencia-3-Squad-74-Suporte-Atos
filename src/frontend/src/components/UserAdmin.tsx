@@ -1,16 +1,16 @@
 // Administração: cadastro de funcionários internos (POST /api/usuarios).
 // Nesta tela, Admin, Supervisor e Agente são cadastrados sem grupo de empresa
 // e a API devolve um convite de ativação (tokenAtivacao + expiraEm), tratado na Etapa 2.
-import React, { useRef, useState } from 'react';
-import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, Table, TableRow, TableBody, TableCell, TableHead, Typography, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
 import { ContentCopy, PersonAddAlt1 } from '@mui/icons-material';
-import { ApiError, cadastrarUsuario, isConviteFuncionario } from '../api';
-import type { ConviteFuncionarioDto, PapelInterno } from '../api';
+import { ApiError, cadastrarUsuario, isConviteFuncionario, listarFuncionarios } from '../api';
+import type { ConviteFuncionarioDto, FuncionarioListaDto, PapelInterno } from '../api';
 import { formatDateTime, parseApiDate } from '../dates';
 import { notifyApiError } from '../notify';
 import FormTextField from './form/FormTextField';
@@ -34,12 +34,16 @@ export default function UserAdmin() {
     defaultValues: { nome: '', email: '', papel: 'Agente' },
   });
   const papel = watch('papel');
+
   const [convite, setConvite] = useState<ConviteFuncionarioDto | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const linkRef = useRef<HTMLInputElement>(null);
   const inviteLink = convite
     ? `${window.location.origin}/ativar#token=${encodeURIComponent(convite.tokenAtivacao)}`
     : '';
+  const [funcionarios, setFuncionarios] = useState<FuncionarioListaDto[]>([]);
+  const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(false);
+  const [erroFuncionarios, setErroFuncionarios] = useState<string | null>(null);
 
   const onSubmit = async (data: UserForm) => {
     // Nao substituir o unico convite antes da confirmacao explicita do administrador.
@@ -52,6 +56,7 @@ export default function UserAdmin() {
         grupoEmpresaId: null,
         papel: data.papel as PapelInterno,
       });
+      if (!mounted.current) return;
       if (!isConviteFuncionario(criado)) {
         toast.error(t('users.unexpectedInvite'));
         return;
@@ -59,21 +64,47 @@ export default function UserAdmin() {
       toast.success(t('users.created', { name: criado.nome }));
       reset({ nome: '', email: '', papel: data.papel });
       setConvite(criado);
+      void carregarFuncionarios();
     } catch (err) {
+      if (!mounted.current) return;
       // 409: e-mail já cadastrado — mostra no próprio campo.
       if (err instanceof ApiError && err.status === 409) setError('email', { type: 'server', message: t('users.emailExists') });
       else notifyApiError(err, t('users.createError'));
     }
   };
 
+  const mounted = useRef(false);
+  const requestVersion = useRef(0);
+  const carregarFuncionarios = useCallback(async () => {
+    const version = ++requestVersion.current;
+    if (!mounted.current) return;
+    setCarregandoFuncionarios(true);
+    setErroFuncionarios(null);
+    try {
+      const data = await listarFuncionarios();
+      if (mounted.current && version === requestVersion.current) setFuncionarios(data);
+    } catch {
+      if (mounted.current && version === requestVersion.current) setErroFuncionarios(t('api.generic'));
+    } finally {
+      if (mounted.current && version === requestVersion.current) setCarregandoFuncionarios(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    mounted.current = true;
+    void carregarFuncionarios();
+    return () => { mounted.current = false; requestVersion.current++; };
+  }, [carregarFuncionarios]);
+
   const copyInvite = async () => {
     if (!inviteLink) return;
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(inviteLink);
-      setCopyStatus('copied');
+      if (mounted.current) setCopyStatus('copied');
     } catch {
       // Mantém o campo selecionável para cópia manual quando a Clipboard API não está disponível.
+      if (!mounted.current) return;
       setCopyStatus('error');
       linkRef.current?.focus();
       linkRef.current?.select();
@@ -120,7 +151,7 @@ export default function UserAdmin() {
                 size="small"
                 label={t('users.inviteLink')}
                 InputProps={{ readOnly: true }}
-                onFocus={(event) => event.currentTarget.select()}
+                onFocus={(event) => (event.currentTarget as HTMLInputElement).select()}
               />
               <Typography variant="caption">
                 {t('users.inviteExpiresAt', { date: formatDateTime(parseApiDate(convite.expiraEm)) })}
@@ -139,6 +170,59 @@ export default function UserAdmin() {
             </Stack>
           </Paper>
         )}
+
+        {/* Seção: Listagem de funcionários cadastrados (apenas Admin) */}
+        <>
+          <Paper variant="outlined" sx={{ p: 2.5, mt: 3 }}>
+            <Stack spacing={2}>
+              <Typography variant="h2" sx={{ mb: 1 }}>
+                {t('users.funcionariosTitle')}
+              </Typography>
+
+              {carregandoFuncionarios ? (
+                <Typography color="text.secondary">{t('users.funcionariosCarregando')}</Typography>
+              ) : erroFuncionarios ? (
+                <Alert severity="error">{erroFuncionarios}</Alert>
+              ) : funcionarios.length === 0 ? (
+                <Typography color="text.secondary">{t('users.funcionariosVazios')}</Typography>
+              ) : (
+                <Table size="small" aria-label="funcionarios">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t('users.name')}</TableCell>
+                      <TableCell>{t('users.email')}</TableCell>
+                      <TableCell align="right">{t('users.role')}</TableCell>
+                      <TableCell align="center">{t('users.credentialStatus')}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {funcionarios.map((f) => (
+                      <TableRow key={f.id} sx={{ borderBottom: '1px solid #eaeaea' }}>
+                        <TableCell component="td">{f.nome}</TableCell>
+                        <TableCell>{f.email}</TableCell>
+                        <TableCell align="right">{t(`users.roles.${f.papel}`)}</TableCell>
+                        <TableCell align="center">
+                          <span style={{ textTransform: 'capitalize' }}>{t(`users.credentialStates.${f.situacao}`)}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  disabled={carregandoFuncionarios}
+                  onClick={() => void carregarFuncionarios()}
+                >
+                  {t('users.atualizar')}
+                </Button>
+                {t('users.qtdeFuncionarios', { count: funcionarios.length })}
+              </Stack>
+            </Stack>
+          </Paper>
+        </>
       </Stack>
     </Box>
   );

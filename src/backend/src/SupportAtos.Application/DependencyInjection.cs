@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<FuncionarioAutenticacaoService>();
         services.AddScoped<ConsultarUsuarioUseCase>();
         services.AddScoped<ListarUsuariosPorGrupoUseCase>();
+        services.AddScoped<ListarFuncionariosUseCase>();
 
         return services;
     }

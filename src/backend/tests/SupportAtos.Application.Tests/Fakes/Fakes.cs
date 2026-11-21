@@ -29,6 +29,8 @@ public class FakeUsuarioRepository : IUsuarioRepository
     public Task<bool> EmailExisteAsync(string email, CancellationToken cancellationToken = default)
         => Task.FromResult(_usuarios.Any(u => u.Email == email));
 
+    public Task<IReadOnlyList<Usuario>> ListarFuncionariosAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Usuario>>(_usuarios.Where(u => u.Papel is PapelUsuario.Admin or PapelUsuario.Supervisor or PapelUsuario.Agente).OrderBy(u => u.Nome).ThenBy(u => u.Id).ToList());
+
     public Task<IReadOnlyList<Usuario>> ListarAgentesAsync(CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<Usuario>>(_usuarios
             .Where(u => u.Papel is PapelUsuario.Agente or PapelUsuario.Supervisor or PapelUsuario.Admin)
