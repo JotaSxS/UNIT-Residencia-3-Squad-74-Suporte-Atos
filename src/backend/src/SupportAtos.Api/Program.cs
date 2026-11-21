@@ -34,7 +34,7 @@ if (args.Contains("--bootstrap-admin"))
     if (builder.Environment.IsDevelopment())
         SupportAtos.Api.DevelopmentDatabaseConfiguration.ParseDockerConnection(builder.Configuration.GetConnectionString("DefaultConnection"));
     if (args.Length != 1) { Console.Error.WriteLine("Use somente --bootstrap-admin; os dados são solicitados no terminal."); Environment.ExitCode = 1; return; }
-    Environment.ExitCode = await BootstrapAdminCommand.ExecutarAsync(builder.Configuration);
+    Environment.ExitCode = await BootstrapAdminCommand.ExecutarAsync(builder.Configuration, builder.Environment);
     return;
 }
 

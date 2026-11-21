@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.FileProviders;
 using Npgsql;
 using SupportAtos.Application;
 using SupportAtos.Application.Abstractions;
@@ -18,6 +20,14 @@ namespace SupportAtos.Integration.Tests;
 
 public class BootstrapAdminTests
 {
+    private sealed class AmbienteTeste(string nome) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = nome;
+        public string ApplicationName { get; set; } = "SupportAtos.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
     private sealed class SemUsuario : ICurrentUser
     {
         public bool IsAutenticado => false;
@@ -30,7 +40,7 @@ public class BootstrapAdminTests
         public bool Verifica(string senha, string hash) => false;
     }
 
-    private static async Task<ServiceProvider> BancoExclusivo(bool falharHash = false)
+    private static async Task<ServiceProvider> BancoExclusivo(bool falharHash = false, string ambiente = "Production")
     {
         var name = "supportatos_test_bootstrap_" + Guid.NewGuid().ToString("N");
         var settings = new NpgsqlConnectionStringBuilder(TestWebAppFactory.ConexaoBanco) { Database = "postgres" };
@@ -47,6 +57,7 @@ public class BootstrapAdminTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddApplication();
+        services.AddSingleton<IHostEnvironment>(new AmbienteTeste(ambiente));
         services.AddInfrastructure(configuration);
         services.AddSingleton<ICurrentUser, SemUsuario>();
         services.AddScoped<IHashSenha, Argon2idHashSenha>();
@@ -56,6 +67,32 @@ public class BootstrapAdminTests
         using var scope = provider.CreateScope();
         await scope.ServiceProvider.GetRequiredService<SupportAtosDbContext>().Database.MigrateAsync();
         return provider;
+    }
+
+    [Fact]
+    public async Task BootstrapDevelopmentAceitaSenhaDeSeisCaracteres()
+    {
+        await using var provider = await BancoExclusivo(ambiente: "Development");
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<FuncionarioAutenticacaoService>();
+        await service.BootstrapAsync(new("Admin", "dev-admin@bootstrap.test", "123456"));
+        var credencial = await scope.ServiceProvider.GetRequiredService<SupportAtosDbContext>()
+            .Set<UsuarioCredencial>().SingleAsync();
+        Assert.True(new Argon2idHashSenha().Verifica("123456", credencial.SenhaHash));
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Testing")]
+    public async Task BootstrapForaDeDevelopmentRejeitaSenhaCurta(string ambiente)
+    {
+        await using var provider = await BancoExclusivo(ambiente: ambiente);
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<FuncionarioAutenticacaoService>();
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.BootstrapAsync(new("Admin", "admin@bootstrap.test", "123456")));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<SupportAtosDbContext>()
+            .Set<AutenticacaoBootstrap>().AnyAsync());
     }
 
     [Fact]

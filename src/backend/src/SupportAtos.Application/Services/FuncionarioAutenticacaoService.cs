@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.Security.Cryptography;
 using System.Text;
 using SupportAtos.Application.Abstractions;
@@ -17,7 +18,8 @@ public class FuncionarioAutenticacaoService(
     IUnitOfWork unitOfWork,
     IHashSenha hashSenha,
     IRefreshTokenGerador tokens,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IHostEnvironment environment)
 {
     public async Task<ConviteFuncionarioResult> CadastrarAsync(CadastrarUsuarioInput input, CancellationToken ct = default)
     {
@@ -64,7 +66,7 @@ public class FuncionarioAutenticacaoService(
     // Somente o comando local explícito chama este método; não existe rota HTTP de bootstrap.
     public async Task<UsuarioDto> BootstrapAsync(BootstrapAdminInput input, CancellationToken ct = default)
     {
-        ValidarSenha(input.Senha);
+        ValidarSenha(input.Senha, environment.IsDevelopment() ? 6 : 15);
         return await repository.ExecutarBootstrapAsync(async () =>
         {
             var usuario = await cadastrarUsuario.Handle(new(input.Nome, input.Email, null, PapelUsuario.Admin), ct);
@@ -81,10 +83,10 @@ public class FuncionarioAutenticacaoService(
             throw new ValidationException("Credenciais internas são exclusivas de Admin, Supervisor e Agente.");
     }
 
-    private static void ValidarSenha(string senha)
+    private static void ValidarSenha(string senha, int minimo = 15)
     {
-        if (string.IsNullOrWhiteSpace(senha) || senha.Length is < 15 or > 128)
-            throw new ValidationException("A senha deve conter entre 15 e 128 caracteres.");
+        if (string.IsNullOrWhiteSpace(senha) || senha.Length < minimo || senha.Length > 128)
+            throw new ValidationException($"A senha deve conter entre {minimo} e 128 caracteres.");
     }
 
     private static string HashToken(string token)

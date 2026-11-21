@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Hosting;
 using SupportAtos.Api.Providers;
 using SupportAtos.Application;
 using SupportAtos.Application.Abstractions;
@@ -14,7 +15,7 @@ namespace SupportAtos.Api.Authentication;
 
 public static class BootstrapAdminCommand
 {
-    public static async Task<int> ExecutarAsync(IConfiguration configuration)
+    public static async Task<int> ExecutarAsync(IConfiguration configuration, IHostEnvironment environment)
     {
         // Não aceita senha via argumentos, ambiente ou pipe: evita histórico e captura de stdout.
         if (Console.IsInputRedirected || Console.IsOutputRedirected)
@@ -43,7 +44,7 @@ public static class BootstrapAdminCommand
         var nome = Console.ReadLine() ?? string.Empty;
         Console.Write("E-mail: ");
         var email = Console.ReadLine() ?? string.Empty;
-        Console.Write("Senha (15 a 128 caracteres, sem eco): ");
+        Console.Write($"Senha ({(environment.IsDevelopment() ? 6 : 15)} a 128 caracteres, sem eco): ");
         var senha = LerSenha();
         Console.Write("Confirme a senha: ");
         if (senha != LerSenha())
@@ -57,6 +58,7 @@ public static class BootstrapAdminCommand
         var services = new ServiceCollection();
         services.AddLogging(b => b.ClearProviders()); // Sem logs EF/SQL ou segredos no procedimento.
         services.AddHttpContextAccessor();
+        services.AddSingleton(environment);
         services.AddScoped<ICurrentUser, HttpContextCurrentUserProvider>();
         services.AddApplication();
         services.AddScoped<IHashSenha, Argon2idHashSenha>();
