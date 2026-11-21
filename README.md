@@ -1,5 +1,8 @@
 # SupportAtos
 
+[![CI](https://github.com/FluixIT/system-atos-squad74/actions/workflows/ci.yml/badge.svg)](https://github.com/FluixIT/system-atos-squad74/actions/workflows/ci.yml)
+[![E2E Playwright](https://github.com/FluixIT/system-atos-squad74/actions/workflows/e2e.yml/badge.svg)](https://github.com/FluixIT/system-atos-squad74/actions/workflows/e2e.yml)
+
 Sistema de suporte com portal do cliente e painel de atendimento. Backend em C#/.NET 10, ASP.NET Core, EF Core 10 e PostgreSQL; frontend em React 18, TypeScript, Vite e Material UI.
 
 ## Setup Windows/PowerShell ‚Äî Etapa B
@@ -111,7 +114,7 @@ PostgreSQL Windows, inclusive servi√ßos em `5432`, permanece intacto e fora do f
 
 ### Porta local do PostgreSQL
 
-Descoberta de porta no onboarding: configuracoes explicitas no arquivo local e no ambiente prevalecem (divergencia gera erro). Sem elas, o binding unico em loopback do container oficial, inclusive parado, determina a porta. Sem container, procura uma porta livre de 5433 a 5443. Identidade divergente interrompe a descoberta. O setup salva a porta somente apos validar a conexao, sem sobrescrever arquivo existente. CheckOnly informa a origem sem persistir ou exportar a porta. A disponibilidade nao reserva a porta ate a subida do Docker. Arquivo local existente sem porta v·lida exige correÁ„o manual e permanece preservado.
+Descoberta de porta no onboarding: configuracoes explicitas no arquivo local e no ambiente prevalecem (divergencia gera erro). Sem elas, o binding unico em loopback do container oficial, inclusive parado, determina a porta. Sem container, procura uma porta livre de 5433 a 5443. Identidade divergente interrompe a descoberta. O setup salva a porta somente apos validar a conexao, sem sobrescrever arquivo existente. CheckOnly informa a origem sem persistir ou exportar a porta. A disponibilidade nao reserva a porta ate a subida do Docker. Arquivo local existente sem porta v lida exige corre  o manual e permanece preservado.
 
 Cada m√°quina pode publicar o Docker em uma porta diferente sem alterar arquivos versionados. Copie `.supportatos.local.env.example` para `.supportatos.local.env` na raiz do reposit√≥rio (ignorado pelo Git) e ajuste:
 
