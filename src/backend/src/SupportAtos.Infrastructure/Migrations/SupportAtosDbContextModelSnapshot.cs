@@ -66,6 +66,24 @@ namespace SupportAtos.Infrastructure.Migrations
                     b.ToTable("anexo", (string)null);
                 });
 
+            modelBuilder.Entity("SupportAtos.Domain.Entities.AutenticacaoBootstrap", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("ExecutadoEm")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("executado_em");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("autenticacao_bootstrap", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_bootstrap_unico", "id = 1");
+                        });
+                });
+
             modelBuilder.Entity("SupportAtos.Domain.Entities.Chamado", b =>
                 {
                     b.Property<int>("Id")
@@ -337,6 +355,60 @@ namespace SupportAtos.Infrastructure.Migrations
                     b.ToTable("provisionamento_audit", (string)null);
                 });
 
+            modelBuilder.Entity("SupportAtos.Domain.Entities.SessaoAutenticacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("criado_em");
+
+                    b.Property<string>("EnderecoIp")
+                        .HasColumnType("varchar(45)")
+                        .HasColumnName("endereco_ip");
+
+                    b.Property<DateTime>("RefreshTokenExpiracao")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("refresh_token_expiracao");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)")
+                        .HasColumnName("refresh_token_hash");
+
+                    b.Property<DateTime?>("RevogadoEm")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("revogado_em");
+
+                    b.Property<string>("SubstituidoPorRefreshTokenHash")
+                        .HasColumnType("varchar(255)")
+                        .HasColumnName("substituido_por_refresh_token_hash");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("user_agent");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefreshTokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("RevogadoEm");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.ToTable("sessao_autenticacao", (string)null);
+                });
+
             modelBuilder.Entity("SupportAtos.Domain.Entities.SlaCategoria", b =>
                 {
                     b.Property<int>("Id")
@@ -409,7 +481,7 @@ namespace SupportAtos.Infrastructure.Migrations
                         .HasColumnType("varchar(255)")
                         .HasColumnName("email");
 
-                    b.Property<int>("GrupoEmpresaId")
+                    b.Property<int?>("GrupoEmpresaId")
                         .HasColumnType("integer")
                         .HasColumnName("grupo_empresa_id");
 
@@ -434,6 +506,72 @@ namespace SupportAtos.Infrastructure.Migrations
                     b.HasIndex("GrupoEmpresaId");
 
                     b.ToTable("usuario", (string)null);
+                });
+
+            modelBuilder.Entity("SupportAtos.Domain.Entities.UsuarioCredencial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AtivacaoConsumidaEm")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("ativacao_consumida_em");
+
+                    b.Property<bool>("Ativo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("ativo");
+
+                    b.Property<DateTime?>("BloqueadoAte")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("bloqueado_ate");
+
+                    b.Property<DateTime>("DataCriacao")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("data_criacao");
+
+                    b.Property<DateTime?>("DataUltimaAlteracao")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("data_ultima_alteracao");
+
+                    b.Property<string>("SenhaHash")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)")
+                        .HasColumnName("senha_hash");
+
+                    b.Property<int>("TentativasFalhas")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("tentativas_falhas");
+
+                    b.Property<DateTime?>("TokenAtivacaoExpiraEm")
+                        .HasColumnType("timestamp")
+                        .HasColumnName("token_ativacao_expira_em");
+
+                    b.Property<string>("TokenAtivacaoHash")
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("token_ativacao_hash");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("integer")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenAtivacaoHash")
+                        .IsUnique()
+                        .HasFilter("token_ativacao_hash IS NOT NULL");
+
+                    b.HasIndex("UsuarioId")
+                        .IsUnique();
+
+                    b.ToTable("usuario_credencial", (string)null);
                 });
 
             modelBuilder.Entity("SupportAtos.Domain.Entities.Anexo", b =>
@@ -535,15 +673,36 @@ namespace SupportAtos.Infrastructure.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("SupportAtos.Domain.Entities.SessaoAutenticacao", b =>
+                {
+                    b.HasOne("SupportAtos.Domain.Entities.Usuario", "Usuario")
+                        .WithMany("SessoesAutenticacao")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("SupportAtos.Domain.Entities.Usuario", b =>
                 {
                     b.HasOne("SupportAtos.Domain.Entities.GrupoEmpresa", "GrupoEmpresa")
                         .WithMany("Usuarios")
                         .HasForeignKey("GrupoEmpresaId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("GrupoEmpresa");
+                });
+
+            modelBuilder.Entity("SupportAtos.Domain.Entities.UsuarioCredencial", b =>
+                {
+                    b.HasOne("SupportAtos.Domain.Entities.Usuario", "Usuario")
+                        .WithOne("Credencial")
+                        .HasForeignKey("SupportAtos.Domain.Entities.UsuarioCredencial", "UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("SupportAtos.Domain.Entities.Chamado", b =>
@@ -574,9 +733,13 @@ namespace SupportAtos.Infrastructure.Migrations
                 {
                     b.Navigation("Chamados");
 
+                    b.Navigation("Credencial");
+
                     b.Navigation("Interacoes");
 
                     b.Navigation("LogsAuditoria");
+
+                    b.Navigation("SessoesAutenticacao");
                 });
 #pragma warning restore 612, 618
         }

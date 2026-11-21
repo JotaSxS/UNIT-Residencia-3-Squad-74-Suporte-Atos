@@ -24,7 +24,7 @@ public class ConsultarChamadoUseCase
         var chamado = await _chamadoRepository.GetByCodigoPublicoComHistoricoAsync(codigoPublico, cancellationToken)
             ?? throw new NotFoundException($"Chamado '{codigoPublico}' não encontrado.");
 
-        if (usuarioAtual.Papel == PapelUsuario.Cliente && chamado.GrupoEmpresaId != usuarioAtual.GrupoEmpresaIdInterno)
+        if (usuarioAtual.Papel == PapelUsuario.Cliente && chamado.GrupoEmpresaId != usuarioAtual.GrupoEmpresaIdInterno!.Value)
         {
             throw new NotFoundException($"Chamado '{codigoPublico}' não encontrado.");
         }

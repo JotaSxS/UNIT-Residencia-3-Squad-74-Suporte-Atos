@@ -1,9 +1,11 @@
+using SupportAtos.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SupportAtos.Api.Authentication;
-using SupportAtos.Application.Abstractions;
 using SupportAtos.Application.DTOs;
 using SupportAtos.Application.UseCases;
+using SupportAtos.Application.Services;
+using SupportAtos.Domain.Enums;
 
 namespace SupportAtos.Api.Controllers;
 
@@ -39,9 +41,11 @@ public class UsuariosController : ControllerBase
             usuario.GrupoEmpresaIdInterno, usuario.NomeGrupo, expiracao, DateTime.UtcNow));
     }
 
+    /// <summary>Cadastra cliente sem credencial ou funcionário interno com convite de ativação.
+    /// Para funcionários, acrescenta tokenAtivacao e expiraEm aos campos do usuário na resposta 201.</summary>
     [HttpPost]
     [Authorize(Policy = AuthenticationSetup.PolicyEquipeAdmin)]
-    [ProducesResponseType(typeof(UsuarioDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -49,8 +53,16 @@ public class UsuariosController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CadastrarUsuario(
         [FromBody] CadastrarUsuarioInput input,
+        [FromServices] FuncionarioAutenticacaoService autenticacao,
         CancellationToken cancellationToken)
     {
+        if (input.Papel != PapelUsuario.Cliente)
+        {
+            var convite = await autenticacao.CadastrarAsync(input, cancellationToken);
+            Response.Headers.CacheControl = "no-store";
+            return CreatedAtAction(nameof(ConsultarUsuario), new { id = convite.Id }, convite);
+        }
+
         var usuario = await _cadastrarUsuarioUseCase.Handle(input, cancellationToken);
         return CreatedAtAction(nameof(ConsultarUsuario), new { id = usuario.Id }, usuario);
     }
@@ -78,5 +90,20 @@ public class UsuariosController : ControllerBase
     {
         var usuarios = await _listarUsuariosPorGrupoUseCase.Handle(grupoEmpresaId, cancellationToken);
         return Ok(usuarios);
+    }
+
+    /// <summary>Lista todos os funcionários internos (Admin, Supervisor, Agente) com situação da credencial.</summary>
+    [HttpGet("funcionarios")]
+    [Authorize(Policy = AuthenticationSetup.PolicyEquipeAdmin)]
+    [ProducesResponseType(typeof(IReadOnlyList<FuncionarioDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> ListarFuncionarios(
+        [FromServices] ListarFuncionariosUseCase listarFuncionariosUseCase,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var funcionarios = await listarFuncionariosUseCase.Handle(cancellationToken);
+        return Ok(funcionarios);
     }
 }

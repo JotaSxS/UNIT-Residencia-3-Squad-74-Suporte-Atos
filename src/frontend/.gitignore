@@ -2,3 +2,9 @@ node_modules
 dist
 .DS_Store
 *.local
+
+# Certificados de desenvolvimento e chaves privadas nunca devem ser versionados.
+*.pem
+*.key
+*.pfx
+*.p12

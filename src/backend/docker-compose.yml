@@ -1,3 +1,7 @@
+# Compose oficial de desenvolvimento. Execute a partir de src/backend.
+# Preserve o projeto Compose e a chave do volume para reutilizar os dados existentes.
+# A porta HOST vem de SUPPORTATOS_DB_PORT (padrao 5433); a porta interna continua 5432.
+# Exemplo manual: docker compose --env-file ../../.supportatos.local.env -f docker-compose.yml up -d
 services:
   supportatos-db:
     image: postgres:17
@@ -7,7 +11,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-supportatos}
       - POSTGRES_DB=supportatos
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${SUPPORTATOS_DB_PORT:-5433}:5432"
     volumes:
       - supportatos-db-data:/var/lib/postgresql/data
     restart: unless-stopped

@@ -35,7 +35,7 @@ public class MudarStatusChamadoUseCase
 
         if (usuarioAtual.Papel == PapelUsuario.Cliente)
         {
-            if (chamado.GrupoEmpresaId != usuarioAtual.GrupoEmpresaIdInterno)
+            if (chamado.GrupoEmpresaId != usuarioAtual.GrupoEmpresaIdInterno!.Value)
             {
                 throw new NotFoundException($"Chamado '{codigoPublico}' não encontrado.");
             }

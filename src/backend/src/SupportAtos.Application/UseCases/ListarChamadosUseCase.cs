@@ -23,7 +23,7 @@ public class ListarChamadosUseCase
         var usuarioAtual = _currentUser.UsuarioAtual;
 
         var filtroEfetivo = usuarioAtual.Papel == PapelUsuario.Cliente
-            ? filtro with { GrupoEmpresaId = usuarioAtual.GrupoEmpresaIdInterno }
+            ? filtro with { GrupoEmpresaId = usuarioAtual.GrupoEmpresaIdInterno!.Value }
             : filtro;
 
         var chamados = await _chamadoRepository.ListarFilaAsync(filtroEfetivo, cancellationToken);

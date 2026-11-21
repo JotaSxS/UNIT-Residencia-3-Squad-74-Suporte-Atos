@@ -1,4 +1,4 @@
-namespace SupportAtos.Api.Options;
+namespace SupportAtos.Application.Options;
 
 /// <summary>
 /// Configurações de integração SSO (seção "Sso"). Nenhum segredo deve vir

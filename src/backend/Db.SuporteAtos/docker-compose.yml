@@ -1,3 +1,7 @@
+# LEGADO: preservado apenas como referencia historica; nao executar no onboarding.
+# Compose oficial: ../docker-compose.yml (src/backend/docker-compose.yml).
+# Este arquivo disputa container/porta com o oficial e seleciona outro volume.
+# Seus scripts de inicializacao SQL nao devem ser combinados com migrations EF.
 services:
   supportatos-db:
     image: postgres:17

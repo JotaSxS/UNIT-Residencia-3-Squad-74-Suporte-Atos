@@ -1,4 +1,5 @@
 using SupportAtos.Api.Options;
+using SupportAtos.Application.Options;
 using SupportAtos.Domain.Enums;
 
 namespace SupportAtos.Api.Authentication;

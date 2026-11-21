@@ -25,6 +25,10 @@ public class SupportAtosDbContext : DbContext
 
     public DbSet<Usuario> Usuarios => Set<Usuario>();
 
+    public DbSet<UsuarioCredencial> UsuarioCredenciais => Set<UsuarioCredencial>();
+
+    public DbSet<SessaoAutenticacao> SessoesAutenticacao => Set<SessaoAutenticacao>();
+
     public DbSet<SlaCategoria> SlaCategorias => Set<SlaCategoria>();
 
     public DbSet<Chamado> Chamados => Set<Chamado>();

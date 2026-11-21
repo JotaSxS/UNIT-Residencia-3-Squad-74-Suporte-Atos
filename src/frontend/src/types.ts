@@ -1,7 +1,7 @@
 // Tipos de domínio compartilhados pelo front.
 
 export type ThemeMode = 'light' | 'dark';
-export type Role = 'cliente' | 'agente' | 'admin';
+export type Role = 'cliente' | 'agente' | 'supervisor' | 'admin';
 
 export type StatusKey = 'aberto' | 'em_andamento' | 'aguardando_cliente' | 'resolvido' | 'fechado';
 export type PriorityKey = 'alta' | 'media' | 'baixa';
@@ -44,6 +44,8 @@ export interface Ticket {
 }
 
 export interface Session {
+  usuarioId?: number;
+  grupoEmpresaId?: number | null;
   role: Role;
   nome: string;
   empresa: string | null;

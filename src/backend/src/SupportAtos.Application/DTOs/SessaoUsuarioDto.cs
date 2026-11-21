@@ -7,7 +7,7 @@ public record SessaoUsuarioDto(
     string Nome,
     string Email,
     PapelUsuario Papel,
-    int GrupoEmpresaId,
+    int? GrupoEmpresaId,
     string GrupoEmpresaNome,
     DateTime ExpiraEm,
     DateTime ServidorEm);

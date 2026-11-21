@@ -1,5 +1,5 @@
 // Aplicação: estado global (sessão, chamados, notificações), tema MUI e rotas (React Router) com navegação por papel.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Box, CssBaseline, Skeleton, Stack, ThemeProvider } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -11,7 +11,8 @@ import { visuallyHidden } from './components/ui';
 import { buildTheme } from './theme';
 import { seed, seedNotifications } from './data';
 import i18n, { DAYJS_LOCALE, LANGS } from './i18n';
-import { clearToken } from './api';
+import { getAuthState, subscribeAuth, restoreSession, logout as logoutSession } from './auth';
+import { notifyApiError } from './notify';
 import type { Lang } from './i18n';
 import LoginScreen from './components/Login';
 import { Sidebar, TopBar } from './components/Layout';
@@ -19,6 +20,7 @@ import TicketList, { NewTicketModal } from './components/TicketList';
 import TicketDetail from './components/TicketDetail';
 import Reports from './components/Reports';
 import UserAdmin from './components/UserAdmin';
+import Activate from './components/Activate';
 import type { AppNotification, Role, Session, ThemeMode, Ticket } from './types';
 
 // Textos dos seletores de data (x-date-pickers) por idioma da interface.
@@ -63,6 +65,7 @@ export default function SupportPortal() {
   const lang: Lang = (LANGS as readonly string[]).includes(i18nInstance.language) ? (i18nInstance.language as Lang) : 'pt';
   const location = useLocation();
   const navigate = useNavigate();
+  const activationSuccess = Boolean((location.state as { activationSuccess?: boolean } | null)?.activationSuccess);
   const [themeMode, changeTheme] = useState<ThemeMode>(() => {
     try { return localStorage.getItem('atos.theme') === 'dark' ? 'dark' : 'light'; }
     catch { return 'light'; }
@@ -73,7 +76,8 @@ export default function SupportPortal() {
   };
   const theme = useMemo(() => buildTheme(themeMode), [themeMode]);
 
-  const [session, setSession] = useState<Session | null>(null);
+  const { session, status: authStatus } = useSyncExternalStore(subscribeAuth, getAuthState);
+  useEffect(() => { void restoreSession(); }, []);
   const [tickets, setTickets] = useState<Ticket[]>(seed);
   const [loadingView, setLoadingView] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -90,11 +94,14 @@ export default function SupportPortal() {
     setNotifications((prev) => [{ id: Date.now(), texto: i18n.t('notifications.ticketRegistered', { id: t.id }), data: i18n.t('notifications.now'), lida: false }, ...prev]);
     setShowNewTicket(false);
   };
-  const login = (s: Session) => {
-    setSession(s);
-    if (location.pathname === '/') navigate('/chamados', { replace: true });
+  const login = (_session: Session) => {
+    if (location.pathname === '/' || location.pathname === '/login') navigate('/chamados', { replace: true });
   };
-  const logout = () => { clearToken(); setSession(null); setShowNewTicket(false); navigate('/', { replace: true }); };
+  const logout = () => {
+    setShowNewTicket(false);
+    navigate('/login', { replace: true });
+    void logoutSession().catch(error => notifyApiError(error, tr('api.generic')));
+  };
 
   const mainRef = useRef<HTMLElement>(null);
   // Troca de rota: fecha o menu, mostra o carregamento e leva o foco para o conteúdo (leitores de tela e teclado).
@@ -111,9 +118,16 @@ export default function SupportPortal() {
     <ThemeProvider theme={theme}>
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={DAYJS_LOCALE[lang]} localeText={PICKER_TEXT[lang]}>
         <CssBaseline />
-        {!session ? (
+        {location.pathname === '/ativar' ? (
           <Routes>
-            <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode} />} />
+            <Route path="/ativar" element={<Activate />} />
+          </Routes>
+        ) : authStatus === 'restoring' ? (
+          <Box role="status" aria-label={tr('common.loading')} sx={{ p: 4 }}><ViewSkeleton /></Box>
+        ) : !session ? (
+          <Routes>
+            <Route path="/login" element={<LoginScreen onLogin={login} themeMode={themeMode} setThemeMode={setThemeMode}
+              activationSuccess={activationSuccess} />} />
             <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
           </Routes>
         ) : (

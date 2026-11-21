@@ -1,7 +1,7 @@
 // Tela de abertura de chamado: Título obrigatório no front e erro da API exibido sob o campo.
 import React from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material/styles';
 import i18n from '../i18n';
@@ -24,6 +24,11 @@ const DTO = {
   slaPrazo: '2026-11-12T10:00:00', criadoEm: '2026-11-11T10:00:00',
 };
 
+// O teste valida os valores e a submissao, nao digitacao por tecla.
+function preencherTexto(_u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, valor: string) {
+  fireEvent.change(campo, { target: { value: valor } });
+}
+
 function renderModal() {
   const onCreate = vi.fn();
   render(
@@ -36,9 +41,9 @@ function renderModal() {
 
 /** Preenche categoria e descrição (o produto já vem escolhido); o título cada teste decide. */
 async function preencherRestante(u: ReturnType<typeof userEvent.setup>) {
-  await u.click(await screen.findByRole('combobox', { name: /categoria/i }));
+  await u.click(await screen.findByLabelText(/categoria/i));
   await u.click(await screen.findByRole('option', { name: 'Login' }));
-  await u.type(screen.getByLabelText(/descrição/i), 'Não consigo acessar o sistema.');
+  await preencherTexto(u, screen.getByLabelText(/descrição/i), 'Não consigo acessar o sistema.');
 }
 
 describe('NewTicketModal — Título obrigatório', () => {
@@ -53,7 +58,7 @@ describe('NewTicketModal — Título obrigatório', () => {
     renderModal();
     await preencherRestante(u);
 
-    await u.click(screen.getByRole('button', { name: 'Enviar chamado' }));
+    await u.click(screen.getByText('Enviar chamado', { selector: 'button' }));
 
     const titulo = await screen.findByLabelText(/título/i);
     await waitFor(() => expect(titulo).toHaveAccessibleDescription('Campo obrigatório.'));
@@ -64,10 +69,10 @@ describe('NewTicketModal — Título obrigatório', () => {
   it('título só com espaços também é recusado', async () => {
     const u = userEvent.setup();
     renderModal();
-    await u.type(await screen.findByLabelText(/título/i), '   ');
+    await preencherTexto(u, await screen.findByLabelText(/título/i), '   ');
     await preencherRestante(u);
 
-    await u.click(screen.getByRole('button', { name: 'Enviar chamado' }));
+    await u.click(screen.getByText('Enviar chamado', { selector: 'button' }));
 
     await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveAccessibleDescription('Campo obrigatório.'));
     expect(criarChamado).not.toHaveBeenCalled();
@@ -77,10 +82,10 @@ describe('NewTicketModal — Título obrigatório', () => {
     vi.mocked(criarChamado).mockRejectedValue(new ApiError('O título é obrigatório.', 400, ['O título é obrigatório.'], 'titulo'));
     const u = userEvent.setup();
     const onCreate = renderModal();
-    await u.type(await screen.findByLabelText(/título/i), 'Problema no login');
+    await preencherTexto(u, await screen.findByLabelText(/título/i), 'Problema no login');
     await preencherRestante(u);
 
-    await u.click(screen.getByRole('button', { name: 'Enviar chamado' }));
+    await u.click(screen.getByText('Enviar chamado', { selector: 'button' }));
 
     await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveAccessibleDescription('O título é obrigatório.'));
     expect(onCreate).not.toHaveBeenCalled();
@@ -90,10 +95,10 @@ describe('NewTicketModal — Título obrigatório', () => {
     vi.mocked(criarChamado).mockResolvedValue(DTO);
     const u = userEvent.setup();
     const onCreate = renderModal();
-    await u.type(await screen.findByLabelText(/título/i), '  Problema no login  ');
+    await preencherTexto(u, await screen.findByLabelText(/título/i), '  Problema no login  ');
     await preencherRestante(u);
 
-    await u.click(screen.getByRole('button', { name: 'Enviar chamado' }));
+    await u.click(screen.getByText('Enviar chamado', { selector: 'button' }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
     expect(criarChamado).toHaveBeenCalledWith({
