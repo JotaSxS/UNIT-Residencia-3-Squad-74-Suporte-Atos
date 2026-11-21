@@ -61,6 +61,18 @@ jobs:
         working-directory: tests/e2e
         run: npx playwright install --with-deps chromium
 
+      - name: Preparar certificado HTTPS temporário para E2E local
+        if: ${{ !inputs.base_url }}
+        shell: bash
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$RUNNER_TEMP/supportatos-frontend.key" \
+            -out "$RUNNER_TEMP/supportatos-frontend.pem" \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+          echo "SUPPORTATOS_HTTPS_CERT=$RUNNER_TEMP/supportatos-frontend.pem" >> "$GITHUB_ENV"
+          echo "SUPPORTATOS_HTTPS_KEY=$RUNNER_TEMP/supportatos-frontend.key" >> "$GITHUB_ENV"
+
       - name: Executar testes E2E
         working-directory: tests/e2e
         run: npx playwright test

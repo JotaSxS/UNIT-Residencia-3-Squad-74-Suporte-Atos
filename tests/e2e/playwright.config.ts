@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const LOCAL_PORT = 4173;
-const LOCAL_URL = `http://127.0.0.1:${LOCAL_PORT}`;
+const LOCAL_URL = `https://127.0.0.1:${LOCAL_PORT}`;
 
 // Sem E2E_BASE_URL o suite sobe o build de produção do front localmente.
 // Para rodar contra o ambiente publicado:
@@ -25,6 +25,7 @@ export default defineConfig({
   ],
   use: {
     baseURL,
+    ignoreHTTPSErrors: !externalBaseUrl, // Apenas para o certificado temporário do preview local
     locale: 'pt-BR',
     timezoneId: 'America/Sao_Paulo',
     trace: 'retain-on-failure',
@@ -42,6 +43,7 @@ export default defineConfig({
     : {
         command: `npm --prefix ../../src/frontend run preview -- --host 127.0.0.1 --port ${LOCAL_PORT} --strictPort`,
         url: LOCAL_URL,
+        ignoreHTTPSErrors: true, // Verificação de disponibilidade do preview com certificado local
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },
