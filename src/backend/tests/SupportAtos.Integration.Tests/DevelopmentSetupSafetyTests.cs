@@ -1,3 +1,4 @@
+
 using System.Security.Cryptography;
 using System.Diagnostics;
 using Npgsql;
@@ -6,7 +7,7 @@ using SupportAtos.DevSetup;
 
 namespace SupportAtos.Integration.Tests;
 
-// Pure safety checks: no processes, database, Docker, secrets or certificate store.
+// Safety checks: no database, Docker, real secrets or certificate store.
 public class DevelopmentSetupSafetyTests
 {
     [Theory]
@@ -14,13 +15,19 @@ public class DevelopmentSetupSafetyTests
     [InlineData("prepare")]
     public async Task ExistingSyntheticConfigurationIsReusableWithoutWritingOrDisclosingSecrets(string action)
     {
+        // O utilitário DevSetup é exclusivo do Windows.
+        if (!OperatingSystem.IsWindows())
+            return;
+
         var root = Path.Combine(Path.GetTempPath(), "supportatos-setup-test-" + Guid.NewGuid().ToString("N"));
         var api = Path.GetFullPath(Path.Combine(root, "src/backend/src/SupportAtos.Api"));
         Directory.CreateDirectory(api);
         var settings = Path.Combine(api, "appsettings.json");
         await File.WriteAllTextAsync(settings, "{}");
+
         using var key = RSA.Create(2048);
         var privatePem = key.ExportPkcs8PrivateKeyPem();
+
         try
         {
             // Two invocations demonstrate the no-write path is repeatable.
@@ -28,23 +35,33 @@ public class DevelopmentSetupSafetyTests
             {
                 var start = new ProcessStartInfo("dotnet")
                 {
-                    WorkingDirectory = root, UseShellExecute = false,
-                    RedirectStandardOutput = true, RedirectStandardError = true
+                    WorkingDirectory = root,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
                 };
+
                 start.ArgumentList.Add(typeof(SetupSafety).Assembly.Location);
                 start.ArgumentList.Add(action);
                 start.ArgumentList.Add(root);
-                start.Environment["ConnectionStrings__DefaultConnection"] = "Host=127.0.0.1;Port=5433;Database=supportatos;Username=admin;Password=synthetic-not-a-real-password";
+
+                start.Environment["ConnectionStrings__DefaultConnection"] =
+                    "Host=127.0.0.1;Port=5433;Database=supportatos;Username=admin;Password=synthetic-not-a-real-password";
+
                 start.Environment["Auth__PrivateKeyPem"] = privatePem;
                 start.Environment["Sso__PublicKeyPem"] = key.ExportSubjectPublicKeyInfoPem();
                 start.Environment["Auth__Issuer"] = start.Environment["Sso__Issuer"] = "synthetic";
                 start.Environment["Auth__Audience"] = start.Environment["Sso__Audience"] = "synthetic";
                 start.Environment["Sso__JwksUrl"] = "";
+
                 using var process = Process.Start(start)!;
                 var stdout = process.StandardOutput.ReadToEndAsync();
                 var stderr = process.StandardError.ReadToEndAsync();
+
                 await process.WaitForExitAsync();
+
                 var output = await stdout + await stderr;
+
                 Assert.Equal(0, process.ExitCode);
                 Assert.DoesNotContain("synthetic-not-a-real-password", output);
                 Assert.DoesNotContain("BEGIN", output);
@@ -64,12 +81,47 @@ public class DevelopmentSetupSafetyTests
     }
 
     [Fact]
+    public async Task SetupRejectsUnsupportedOperatingSystemsWithoutDisclosingSecrets()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var start = new ProcessStartInfo("dotnet")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        start.ArgumentList.Add(typeof(SetupSafety).Assembly.Location);
+        start.ArgumentList.Add("inspect");
+        start.ArgumentList.Add(Path.GetTempPath());
+
+        start.Environment["Auth__PrivateKeyPem"] =
+            "synthetic-private-secret-must-not-appear";
+
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync();
+
+        var output = await stdout + await stderr;
+
+        Assert.Equal(1, process.ExitCode);
+        Assert.Contains("exige Windows", output);
+        Assert.DoesNotContain("synthetic-private-secret-must-not-appear", output);
+        Assert.DoesNotContain("BEGIN PRIVATE KEY", output);
+    }
+
+    [Fact]
     public void ExistingLocalValueIsProtectedAndMissingValueCanBePrepared()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Auth:PrivateKeyPem"] = "synthetic-existing-value"
         }).Build();
+
         Assert.True(SetupSafety.HasLocalValue(config, "Auth:PrivateKeyPem"));
         Assert.False(SetupSafety.HasLocalValue(config, "Auth:Audience"));
     }
@@ -86,6 +138,7 @@ public class DevelopmentSetupSafetyTests
     public void RefusesOtherDestinationsWithoutDisclosingConnection(string connection)
     {
         var error = Assert.Throws<SetupFailure>(() => SetupSafety.LocalConnection(connection));
+
         Assert.DoesNotContain("synthetic", error.Message);
         Assert.DoesNotContain("must-not-appear", error.Message);
     }
@@ -95,10 +148,15 @@ public class DevelopmentSetupSafetyTests
     {
         var original = new NpgsqlConnectionStringBuilder
         {
-            Host = "127.0.0.1", Port = 5433, Database = "supportatos", Username = "admin",
+            Host = "127.0.0.1",
+            Port = 5433,
+            Database = "supportatos",
+            Username = "admin",
             Password = "quotes\"; ' $() spaces and unicode: ç"
         };
+
         var parsed = SetupSafety.LocalConnection(original.ConnectionString);
+
         Assert.Equal(original.Password, parsed.Password);
         Assert.Equal("supportatos", parsed.Database);
         Assert.Equal(5433, parsed.Port);
@@ -108,7 +166,11 @@ public class DevelopmentSetupSafetyTests
     public void AcceptsMatchingExistingRsaPair()
     {
         using var key = RSA.Create(2048);
-        SetupSafety.MatchingKeys(key.ExportPkcs8PrivateKeyPem(), key.ExportSubjectPublicKeyInfoPem());
+
+        SetupSafety.MatchingKeys(
+            key.ExportPkcs8PrivateKeyPem(),
+            key.ExportSubjectPublicKeyInfoPem()
+        );
     }
 
     [Fact]
@@ -116,8 +178,14 @@ public class DevelopmentSetupSafetyTests
     {
         using var first = RSA.Create(2048);
         using var second = RSA.Create(2048);
-        var error = Assert.Throws<SetupFailure>(() => SetupSafety.MatchingKeys(
-            first.ExportPkcs8PrivateKeyPem(), second.ExportSubjectPublicKeyInfoPem()));
+
+        var error = Assert.Throws<SetupFailure>(() =>
+            SetupSafety.MatchingKeys(
+                first.ExportPkcs8PrivateKeyPem(),
+                second.ExportSubjectPublicKeyInfoPem()
+            )
+        );
+
         Assert.DoesNotContain("BEGIN", error.Message);
     }
 
@@ -125,7 +193,12 @@ public class DevelopmentSetupSafetyTests
     public void PublicKeyCannotSubstituteForSigningPrivateKey()
     {
         using var key = RSA.Create(2048);
-        Assert.Throws<SetupFailure>(() => SetupSafety.MatchingKeys(
-            key.ExportSubjectPublicKeyInfoPem(), key.ExportSubjectPublicKeyInfoPem()));
+
+        Assert.Throws<SetupFailure>(() =>
+            SetupSafety.MatchingKeys(
+                key.ExportSubjectPublicKeyInfoPem(),
+                key.ExportSubjectPublicKeyInfoPem()
+            )
+        );
     }
 }
