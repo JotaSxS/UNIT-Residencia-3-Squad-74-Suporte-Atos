@@ -1,27 +1,22 @@
+import { useApp, useTicketDetailRoute, type TicketDetailRouteProps } from './useApp';
 // Aplicação: estado global (sessão, chamados, notificações), tema MUI e rotas (React Router) com navegação por papel.
-import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Box, CssBaseline, Skeleton, Stack, ThemeProvider } from '@mui/material';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { enUS, esES, ptBR } from '@mui/x-date-pickers/locales';
-import { useTranslation } from 'react-i18next';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import React from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { visuallyHidden } from './components/ui';
-import { buildTheme } from './theme';
-import { seed, seedNotifications } from './data';
-import i18n, { DAYJS_LOCALE, LANGS } from './i18n';
-import { getAuthState, subscribeAuth, restoreSession, logout as logoutSession } from './auth';
-import { notifyApiError } from './notify';
-import type { Lang } from './i18n';
-import LoginScreen from './components/Login';
-import { Sidebar, TopBar } from './components/Layout';
-import TicketList, { NewTicketModal } from './components/TicketList';
-import TicketDetail from './components/TicketDetail';
-import Reports from './components/Reports';
-import UserAdmin from './components/UserAdmin';
-import Activate from './components/Activate';
-import type { AppNotification, Role, Session, ThemeMode, Ticket } from './types';
+import Activate from '../components/Activate';
+import { Sidebar, TopBar } from '../components/Layout';
+import LoginScreen from '../components/Login';
+import Reports from '../components/Reports';
+import TicketDetail from '../components/TicketDetail';
+import TicketList, { NewTicketModal } from '../components/TicketList';
+import { visuallyHidden } from '../components/ui';
+import UserAdmin from '../components/UserAdmin';
+import { DAYJS_LOCALE } from '../i18n';
+import type { Role } from '../types';
 
 // Textos dos seletores de data (x-date-pickers) por idioma da interface.
 const PICKER_TEXT = {
@@ -40,19 +35,11 @@ function ViewSkeleton() {
   );
 }
 
-interface TicketDetailRouteProps {
-  tickets: Ticket[];
-  session: Session;
-  onUpdate: (ticket: Ticket) => void;
-}
-
 /** /chamados/:id — cliente só abre chamado da própria empresa; id inexistente volta para a lista. */
 function TicketDetailRoute({ tickets, session, onUpdate }: TicketDetailRouteProps) {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const ticket = tickets.find((x) => x.id === id);
-  if (!ticket || (session.role === 'cliente' && ticket.empresa !== session.empresa)) return <Navigate to="/chamados" replace />;
-  return <TicketDetail ticket={ticket} role={session.role} user={session} onBack={() => navigate('/chamados')} onUpdate={onUpdate} />;
+  const { ticket, canView, backToList } = useTicketDetailRoute({ tickets, session, onUpdate });
+  if (!ticket || !canView) return <Navigate to="/chamados" replace />;
+  return <TicketDetail ticket={ticket} role={session.role} user={session} onBack={backToList} onUpdate={onUpdate} />;
 }
 
 /** Rota restrita a alguns papéis; os demais voltam para a lista de chamados. */
@@ -61,58 +48,33 @@ function RoleRoute({ allow, role, children }: { allow: Role[]; role: Role; child
 }
 
 export default function SupportPortal() {
-  const { t: tr, i18n: i18nInstance } = useTranslation();
-  const lang: Lang = (LANGS as readonly string[]).includes(i18nInstance.language) ? (i18nInstance.language as Lang) : 'pt';
-  const location = useLocation();
-  const navigate = useNavigate();
-  const activationSuccess = Boolean((location.state as { activationSuccess?: boolean } | null)?.activationSuccess);
-  const [themeMode, changeTheme] = useState<ThemeMode>(() => {
-    try { return localStorage.getItem('atos.theme') === 'dark' ? 'dark' : 'light'; }
-    catch { return 'light'; }
-  });
-  const setThemeMode = (mode: ThemeMode) => {
-    changeTheme(mode);
-    try { localStorage.setItem('atos.theme', mode); } catch { /* Storage may be disabled. */ }
-  };
-  const theme = useMemo(() => buildTheme(themeMode), [themeMode]);
-
-  const { session, status: authStatus } = useSyncExternalStore(subscribeAuth, getAuthState);
-  useEffect(() => { void restoreSession(); }, []);
-  const [tickets, setTickets] = useState<Ticket[]>(seed);
-  const [loadingView, setLoadingView] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [notifications, setNotifications] = useState<AppNotification[]>(seedNotifications);
-  const [showNewTicket, setShowNewTicket] = useState(false);
-  const unreadCount = notifications.filter((n) => !n.lida).length;
-
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, lida: true })));
-  const markOneRead = (id: number) => setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, lida: true } : n)));
-
-  const updateTicket = (updated: Ticket) => setTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  const createTicket = (t: Ticket) => {
-    setTickets((prev) => [t, ...prev]);
-    setNotifications((prev) => [{ id: Date.now(), texto: i18n.t('notifications.ticketRegistered', { id: t.id }), data: i18n.t('notifications.now'), lida: false }, ...prev]);
-    setShowNewTicket(false);
-  };
-  const login = (_session: Session) => {
-    if (location.pathname === '/' || location.pathname === '/login') navigate('/chamados', { replace: true });
-  };
-  const logout = () => {
-    setShowNewTicket(false);
-    navigate('/login', { replace: true });
-    void logoutSession().catch(error => notifyApiError(error, tr('api.generic')));
-  };
-
-  const mainRef = useRef<HTMLElement>(null);
-  // Troca de rota: fecha o menu, mostra o carregamento e leva o foco para o conteúdo (leitores de tela e teclado).
-  useEffect(() => {
-    if (!session) return undefined;
-    setMobileNavOpen(false);
-    setLoadingView(true);
-    const timer = window.setTimeout(() => setLoadingView(false), 400);
-    mainRef.current?.focus({ preventScroll: true });
-    return () => window.clearTimeout(timer);
-  }, [location.pathname, session]);
+  const {
+    tr,
+    lang,
+    location,
+    navigate,
+    activationSuccess,
+    themeMode,
+    setThemeMode,
+    theme,
+    session,
+    authStatus,
+    tickets,
+    loadingView,
+    mobileNavOpen,
+    setMobileNavOpen,
+    notifications,
+    showNewTicket,
+    setShowNewTicket,
+    unreadCount,
+    markAllRead,
+    markOneRead,
+    updateTicket,
+    createTicket,
+    login,
+    logout,
+    mainRef,
+  } = useApp();
 
   return (
     <ThemeProvider theme={theme}>

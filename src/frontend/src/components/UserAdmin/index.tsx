@@ -1,115 +1,47 @@
+import { PAPEIS, useApp, type UserForm } from './useApp';
 // Administração: cadastro de funcionários internos (POST /api/usuarios).
 // Nesta tela, Admin, Supervisor e Agente são cadastrados sem grupo de empresa
 // e a API devolve um convite de ativação (tokenAtivacao + expiraEm), tratado na Etapa 2.
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, Table, TableRow, TableBody, TableCell, TableHead, Typography, TextField } from '@mui/material';
-import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import { toast } from 'sonner';
 import { ContentCopy, PersonAddAlt1 } from '@mui/icons-material';
-import { ApiError, cadastrarUsuario, isConviteFuncionario, listarFuncionarios } from '../api';
-import type { ConviteFuncionarioDto, FuncionarioListaDto, PapelInterno } from '../api';
-import { formatDateTime, parseApiDate } from '../dates';
-import { notifyApiError } from '../notify';
-import FormTextField from './form/FormTextField';
-import { Eyebrow } from './ui';
-
-const PAPEIS: PapelInterno[] = ['Agente', 'Supervisor', 'Admin'];
-
-const userSchema = yup.object({
-  nome: yup.string().trim().required('validation.required').max(150, 'validation.maxLength'),
-  email: yup.string().trim().required('validation.required').email('validation.email').max(255, 'validation.maxLength'),
-  papel: yup.string().oneOf(PAPEIS, 'validation.required').required('validation.required'),
-});
-type UserForm = yup.InferType<typeof userSchema>;
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { formatDateTime, parseApiDate } from '../../dates';
+import FormTextField from '../form/FormTextField';
+import { Eyebrow } from '../ui';
 
 export default function UserAdmin() {
-  const { t } = useTranslation();
-
-  const { control, handleSubmit, reset, setError, watch, formState: { isSubmitting } } = useForm<UserForm>({
-    resolver: yupResolver(userSchema),
-    mode: 'onTouched',
-    defaultValues: { nome: '', email: '', papel: 'Agente' },
-  });
-  const papel = watch('papel');
-
-  const [convite, setConvite] = useState<ConviteFuncionarioDto | null>(null);
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  const linkRef = useRef<HTMLInputElement>(null);
-  const inviteLink = convite
-    ? `${window.location.origin}/ativar#token=${encodeURIComponent(convite.tokenAtivacao)}`
-    : '';
-  const [funcionarios, setFuncionarios] = useState<FuncionarioListaDto[]>([]);
-  const [carregandoFuncionarios, setCarregandoFuncionarios] = useState(false);
-  const [erroFuncionarios, setErroFuncionarios] = useState<string | null>(null);
-
-  const onSubmit = async (data: UserForm) => {
-    // Nao substituir o unico convite antes da confirmacao explicita do administrador.
-    if (convite) return;
-    setCopyStatus('idle');
-    try {
-      const criado = await cadastrarUsuario({
-        nome: data.nome,
-        email: data.email,
-        grupoEmpresaId: null,
-        papel: data.papel as PapelInterno,
-      });
-      if (!mounted.current) return;
-      if (!isConviteFuncionario(criado)) {
-        toast.error(t('users.unexpectedInvite'));
-        return;
-      }
-      toast.success(t('users.created', { name: criado.nome }));
-      reset({ nome: '', email: '', papel: data.papel });
-      setConvite(criado);
-      void carregarFuncionarios();
-    } catch (err) {
-      if (!mounted.current) return;
-      // 409: e-mail já cadastrado — mostra no próprio campo.
-      if (err instanceof ApiError && err.status === 409) setError('email', { type: 'server', message: t('users.emailExists') });
-      else notifyApiError(err, t('users.createError'));
-    }
-  };
-
-  const mounted = useRef(false);
-  const requestVersion = useRef(0);
-  const carregarFuncionarios = useCallback(async () => {
-    const version = ++requestVersion.current;
-    if (!mounted.current) return;
-    setCarregandoFuncionarios(true);
-    setErroFuncionarios(null);
-    try {
-      const data = await listarFuncionarios();
-      if (mounted.current && version === requestVersion.current) setFuncionarios(data);
-    } catch {
-      if (mounted.current && version === requestVersion.current) setErroFuncionarios(t('api.generic'));
-    } finally {
-      if (mounted.current && version === requestVersion.current) setCarregandoFuncionarios(false);
-    }
-  }, [t]);
-
-  useEffect(() => {
-    mounted.current = true;
-    void carregarFuncionarios();
-    return () => { mounted.current = false; requestVersion.current++; };
-  }, [carregarFuncionarios]);
-
-  const copyInvite = async () => {
-    if (!inviteLink) return;
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable');
-      await navigator.clipboard.writeText(inviteLink);
-      if (mounted.current) setCopyStatus('copied');
-    } catch {
-      // Mantém o campo selecionável para cópia manual quando a Clipboard API não está disponível.
-      if (!mounted.current) return;
-      setCopyStatus('error');
-      linkRef.current?.focus();
-      linkRef.current?.select();
-    }
-  };
+  const {
+    t,
+    control,
+    handleSubmit,
+    isSubmitting,
+    papel,
+    convite,
+    copyStatus,
+    linkRef,
+    inviteLink,
+    funcionarios,
+    carregandoFuncionarios,
+    erroFuncionarios,
+    onSubmit,
+    carregarFuncionarios,
+    copyInvite,
+    dismissInvite,
+  } = useApp();
 
   return (
     <Box sx={{ maxWidth: 520 }}>
@@ -165,7 +97,7 @@ export default function UserAdmin() {
                   <Typography role="status" variant="body2" color="success.main">{t('users.copied')}</Typography>
                 )}
               </Stack>
-              <Button type="button" onClick={() => { setConvite(null); setCopyStatus('idle'); }}>{t('users.dismissInvite')}</Button>
+              <Button type="button" onClick={dismissInvite}>{t('users.dismissInvite')}</Button>
               {copyStatus === 'error' && <Alert severity="warning">{t('users.copyError')}</Alert>}
             </Stack>
           </Paper>

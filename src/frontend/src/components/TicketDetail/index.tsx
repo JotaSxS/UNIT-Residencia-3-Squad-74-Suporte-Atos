@@ -1,22 +1,16 @@
+import { useApp, useMessageForm, type MessageFormValues, type TicketDetailProps } from './useApp';
 // Detalhe do chamado: conversa, notas internas, SLA, ciclo de vida e gestão (assumir / repassar).
-import React, { useState } from 'react';
-import {
-  Box, Button, MenuItem, Paper, Stack, Step, StepLabel, Stepper, Tab, Tabs, TextField, Typography,
-} from '@mui/material';
+import { ChevronLeft, LockOutlined, Send } from '@mui/icons-material';
+import { Box, Button, MenuItem, Paper, Stack, Step, StepLabel, Stepper, Tab, Tabs, TextField, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { useTheme } from '@mui/material/styles';
-import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import { toast } from 'sonner';
-import { ChevronLeft, LockOutlined, Send } from '@mui/icons-material';
-import { AGENTES, STAGES } from '../data';
-import { formatDateTime } from '../dates';
-import FormTextField from './form/FormTextField';
-import { Eyebrow, SlaBar, StatusChip } from './ui';
-import { MONO } from '../tokens';
-import type { Message as MessageData, Role, Session, StatusKey, Ticket } from '../types';
+import React from 'react';
+import { STAGES } from '../../data';
+import { formatDateTime } from '../../dates';
+import { MONO } from '../../tokens';
+import type { StatusKey } from '../../types';
+import FormTextField from '../form/FormTextField';
+import { Eyebrow, SlaBar, StatusChip } from '../ui';
 
 interface MessageProps { autor: string; data: string; texto: string; tint?: boolean; note?: boolean }
 
@@ -34,9 +28,6 @@ function Message({ autor, data, texto, tint, note }: MessageProps) {
 }
 
 /* Formulário de texto (resposta / nota): react-hook-form + Yup, campo obrigatório com asterisco e erro sob o campo. */
-const messageSchema = yup.object({ text: yup.string().trim().required('validation.required') });
-type MessageFormValues = yup.InferType<typeof messageSchema>;
-
 interface MessageFormProps {
   label: string;
   placeholder: string;
@@ -48,12 +39,7 @@ interface MessageFormProps {
 }
 
 function MessageForm({ label, placeholder, submitLabel, onSubmit, startIcon, buttonColor = 'primary', buttonSx }: MessageFormProps) {
-  const { control, handleSubmit, reset } = useForm<MessageFormValues>({
-    resolver: yupResolver(messageSchema),
-    mode: 'onTouched',
-    defaultValues: { text: '' },
-  });
-  const submit = ({ text }: MessageFormValues) => { onSubmit(text); reset(); };
+  const { control, handleSubmit, submit } = useMessageForm(onSubmit);
 
   return (
     <Stack component="form" spacing={1.25} onSubmit={handleSubmit(submit)} noValidate>
@@ -63,46 +49,9 @@ function MessageForm({ label, placeholder, submitLabel, onSubmit, startIcon, but
   );
 }
 
-interface TicketDetailProps {
-  ticket: Ticket;
-  role: Role;
-  user: Session;
-  onBack: () => void;
-  onUpdate: (ticket: Ticket) => void;
-}
-
-export default function TicketDetail({ ticket, role, user, onBack, onUpdate }: TicketDetailProps) {
-  const { atos } = useTheme();
-  const { t } = useTranslation();
-  const [tab, setTab] = useState('conversa');
-  const isTeam = role !== 'cliente'; // agente e administrador atendem o chamado
-  const isMine = ticket.agente === user.nome;
-  const team = Array.from(new Set([user.nome, ...AGENTES])).filter((a) => a !== ticket.agente);
-  const idx = STAGES.indexOf(ticket.status === 'aguardando_cliente' ? 'em_andamento' : ticket.status);
-  const activeStep = ticket.status === 'fechado' ? STAGES.length : idx;
-
-  const send = (texto: string) => {
-    const msg: MessageData = {
-      autor: isTeam ? (ticket.agente || t('detail.teamFallback')) : user.nome,
-      tipo: isTeam ? 'agente' : 'cliente',
-      data: new Date().toISOString(), texto,
-    };
-    onUpdate({ ...ticket, mensagens: [...ticket.mensagens, msg], status: isTeam ? 'aguardando_cliente' : 'em_andamento' });
-    toast.success(isTeam ? t('detail.toasts.replyTeam') : t('detail.toasts.replyClient'));
-  };
-
-  const addNote = (texto: string) => {
-    onUpdate({ ...ticket, notas: [...ticket.notas, { autor: ticket.agente || t('detail.agentFallback'), data: new Date().toISOString(), texto }] });
-    toast.success(t('detail.toasts.noteSaved'));
-  };
-
-  const setStatus = (s: StatusKey) => { onUpdate({ ...ticket, status: s }); toast.success(t('detail.toasts.statusUpdated', { status: t(`status.${s}`) })); };
-  const assign = (a: string | null) => {
-    onUpdate({ ...ticket, agente: a, status: ticket.status === 'aberto' ? 'em_andamento' : ticket.status });
-    if (!a) toast.warning(t('detail.toasts.unassigned'));
-    else if (a === user.nome) toast.success(t('detail.toasts.taken'));
-    else toast.success(t('detail.toasts.reassigned', { agent: a }));
-  };
+export default function TicketDetail(props: TicketDetailProps) {
+  const { ticket, user, onBack } = props;
+  const { atos, t, tab, setTab, isTeam, isMine, team, activeStep, send, addNote, setStatus, assign } = useApp(props);
 
   return (
     <Box sx={{ maxWidth: 1152 }}>
