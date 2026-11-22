@@ -27,11 +27,11 @@ it.each<ThemeMode>(['light', 'dark'])('lista mantém busca, escopo e abertura no
   fireEvent.change(search, { target: { value: 'inexistente-xyz' } });
   expect(screen.queryAllByRole('button', { name: /^Abrir chamado AC-/ })).toHaveLength(0);
   fireEvent.change(search, { target: { value: ticket.id } });
-  fireEvent.click(screen.getByRole('button', { name: i18n.t('tickets.openTicket', { id: ticket.id }), exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('tickets.openTicket', { id: ticket.id }) }));
   expect(onOpen).toHaveBeenCalledWith(ticket.id);
   const otherCompany = seed.find(item => item.empresa !== user.empresa)!;
   fireEvent.change(search, { target: { value: otherCompany.id } });
-  expect(screen.queryByRole('button', { name: i18n.t('tickets.openTicket', { id: otherCompany.id }), exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: i18n.t('tickets.openTicket', { id: otherCompany.id }) })).not.toBeInTheDocument();
 });
 
 it.each<ThemeMode>(['light', 'dark'])('detalhe mantém resposta e transição do cliente no tema %s', async (mode) => {
