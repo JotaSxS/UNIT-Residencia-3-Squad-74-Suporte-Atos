@@ -89,7 +89,7 @@ Antes ele usava Tailwind; foi migrado para alinhar ao padrão.
 
 ## Padrões do projeto
 
-- **Notificações:** `sonner` — `toast.success` / `toast.error` / `toast.warning` (`<Toaster/>` em `SupportPortal.tsx`).
+- **Notificações:** `sonner` — `toast.success` / `toast.error` / `toast.warning` (`<Toaster/>` em `SupportPortal/index.tsx`).
   Não usar `Snackbar` do MUI. Erros de API passam por `notifyApiError` (`src/notify.ts`; 401/403 viram aviso).
 - **Datas:** `dayjs` + `@mui/x-date-pickers`, sempre `DD/MM/YYYY` na interface (`src/dates.ts`). Datas trafegam em ISO 8601.
 - **Idiomas:** `i18next` + `react-i18next` (pt / en / es) em `src/i18n/locales`. Todo texto de tela usa `t('chave')`;
@@ -121,7 +121,7 @@ nos dois temas e nos três idiomas.
 
 ## Rotas (React Router) e navegação por papel
 
-`BrowserRouter` em `main.tsx`; rotas em `SupportPortal.tsx`. Sem sessão aparece o login em qualquer URL; depois do login a URL `/` vai para `/chamados`.
+`BrowserRouter` em `main.tsx`; rotas em `SupportPortal/index.tsx`. Sem sessão aparece o login em qualquer URL; depois do login a URL `/` vai para `/chamados`.
 
 | Rota | Quem acessa | Tela |
 |---|---|---|
@@ -141,7 +141,7 @@ O projeto é **TypeScript** (`strict`). Para checar os tipos: `npm run typecheck
 ```
 src/
 ├─ main.tsx              # bootstrap
-├─ SupportPortal.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e rotas
+├─ SupportPortal/index.tsx     # estado global, ThemeProvider, Toaster, LocalizationProvider e rotas
 ├─ types.ts              # tipos de domínio (Ticket, Session, Role, ViewId...)
 ├─ api.ts                # cliente HTTP da API + tipos dos DTOs (chamados, usuários, grupos)
 ├─ auth.ts               # sessão em memória, login, restauração, refresh coordenado e logout
@@ -156,10 +156,10 @@ src/
    ├─ Login.tsx          # tela de login única
    ├─ Layout.tsx         # Sidebar (Drawer) e TopBar (AppBar, notificações)
    ├─ LanguageSwitcher.tsx
-   ├─ TicketList.tsx     # fila / "Meus chamados", filtros (inclusive por data), modal de novo chamado
-   ├─ TicketDetail.tsx   # conversa, notas internas, SLA, assumir / repassar
+   ├─ TicketList/index.tsx     # fila / "Meus chamados", filtros (inclusive por data), modal de novo chamado
+   ├─ TicketDetail/index.tsx   # conversa, notas internas, SLA, assumir / repassar
    ├─ Reports.tsx        # relatórios
-   ├─ UserAdmin.tsx      # administração: cadastro de usuários (API real)
+   ├─ UserAdmin/index.tsx      # administração: cadastro de usuários (API real)
    └─ ui.tsx             # marca, chips de status, SLA, cartões de indicador
 ```
 
@@ -194,3 +194,9 @@ O código ainda tem os ramos da visão de cliente (`role === 'cliente'`), mas ne
 - Seleção de colunas persistida (`<ColumnSelector/>` do template de tela) não foi feita.
 - Notificações e leitura vivem no estado local; numa integração real viriam do webhook
   de eventos (seção 2.3 do termo).
+
+### Organização das quatro telas (issue #38)
+
+SupportPortal, TicketList, TicketDetail e UserAdmin possuem uma pasta com `index.tsx` para renderização e `useApp.ts` para estado, regras e ações. Os hooks de formulários e resumos ficam junto à tela correspondente. Os imports públicos continuam apontando para a pasta da tela.
+
+O fechamento de 24/11 preserva as interações existentes. Os filtros continuam em Collapse, o detalhe mantém a URL direta `/chamados/:id` e o cadastro continua na página de usuários. A migração desses fluxos para modais exige avaliação com a equipe conforme a issue #38.
