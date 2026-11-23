@@ -39,9 +39,9 @@ Sem relatório até o momento. Incluir descoberta/validação com ≥1 humano.
 - **EP1 Auth/provisionamento:** SSO/JWT, JIT usuário+grupo, API Key M2M.
 - **EP2 Abertura/ciclo:** API + código público único, 5 estados + transição por papel.
 - **EP3 Atendimento:** fila/filtros, pública, internas, manual/auto, templates.
-- **EP4 SLA:** por produto/categoria/prioridade, prazo na abertura, visível, jobs alerta planejados.
+- **EP4 SLA:** por produto/categoria/prioridade, prazo na abertura, visível; jobs de alerta no backlog (Fase 2).
 - **EP5 Relatórios/dashboard:** contadores/SLA, export/filtros em evolução.
-- **EP6 Notificações:** webhook + inatividade (planejado).
+- **EP6 Notificações:** webhook implementado (RF06); encerramento por inatividade no backlog (Fase 2).
 - **EP7 Multicanal/expansão:** e-mail/WhatsApp, reuso (longo prazo).
 
 **Histórias:** EU-01 abrir (código público); EU-02 consultar sem internas; EU-03 reabrir resolvido; EU-04 fila filtros; EU-05 pública+interna; EU-06 atribuir manual/auto; EU-07 status com confirmação; EU-08 admin papéis; EU-09 dashboard SLA; EU-10 JIT JWT; EU-11 prazo SLA.
@@ -53,23 +53,23 @@ Sem relatório até o momento. Incluir descoberta/validação com ≥1 humano.
 | RF03 | Atribuir | Ess | Implementado | PATCH .../atribuir |
 | RF04 | Status | Ess | Implementado | PATCH .../status 5 estados |
 | RF05 | Notas | Ess | Implementado | POST .../interacoes NotaInterna |
-| RF06 | Webhook | Ess | Planejado | sem código |
-| RF07 | SLA | Ess | Parcial | sla_categoria + prazo; job pendente |
-| RF08 | Relatórios | Ess | Parcial | dashboard; sem endpoint |
-| RF09 | Alertas | Ess | Planejado | sem job |
+| RF06 | Webhook | Ess | Implementado | HttpWebhookDispatcher (eventos chamado.criado, atualizado, aguardando_cliente, fechado; header X-Api-Key; retry); POST /api/webhooks/test; 10 testes de integração SLA/RF06 aprovados |
+| RF07 | SLA | Ess | Parcial | sla_config + prazos de resposta/resolução na abertura (testes SLA-01 a SLA-04); monitoramento contínuo por job no backlog |
+| RF08 | Relatórios | Ess | Parcial | dashboard no front; endpoint de relatórios/exportação no backlog |
+| RF09 | Alertas | Ess | Planejado | sem job de alerta (backlog); GET /api/automacao/chamados expõe a fila para automações externas |
 | RF10 | SSO/grupo | Ess | Implementado | UserProvisioningService JIT |
-| RF11 | Anexos | Des | Parcial | entidade/DTO; sem upload |
+| RF11 | Anexos | Des | Parcial | entidade/DTO; upload de arquivos no backlog |
 | RF12 | Papel | Des | Implementado | Cliente/Agente/Supervisor/Admin |
-| RF13 | Auditoria | Des | Parcial | LogAuditoria + ProvisionamentoAudit |
+| RF13 | Auditoria | Des | Parcial | LogAuditoria + ProvisionamentoAudit; cobertura de todos os fluxos no backlog |
 
-**Engenharia (Kanban):** Domain, Application (8 UseCases/Ports/DTOs), Infrastructure (repos, UoW, 3 Migrations, seeder), Api (controllers, exceções, /health), JIT (UserProvisioningService, ClaimsReader, Audit), frontend atendente (Login, Fila, Detalhe, Dashboard, Auth, api), testes xUnit + integração, TokenMinter + mint-token.ps1 — concluídos. Webhook, jobs SLA, relatórios/export, upload, e-mail/WhatsApp — planejados/parciais.
+**Engenharia (Kanban):** Domain, Application (8 UseCases/Ports/DTOs), Infrastructure (repos, UoW, 3 Migrations, seeder), Api (controllers, exceções, /health), JIT (UserProvisioningService, ClaimsReader, Audit), frontend atendente (Login, Fila, Detalhe, Dashboard, Auth, api), testes xUnit + integração, TokenMinter + mint-token.ps1 — concluídos. Webhook (RF06) — concluído. Jobs de SLA/alertas, relatórios/export, upload, e-mail/WhatsApp — no backlog (Fase 2).
 
 **IA no processo:** nenhuma integrada. Manter humano no controle, versionar prompts, sem sensíveis em modelos externos.
 
 ### 2.2 Aceite
 
 - POST /api/chamados válido → 201 ChamadoDto `SA-XXXXXXXXXX`, Aberto.
-- Branco → 400; sem SLA → 400. Prazo auto via sla_categoria.
+- Branco → 400; sem SLA → 400. Prazo auto via sla_config.
 - Cliente só seu grupo senão 404. Internas só equipe. Cliente só Resolvido→Aberto senão 403.
 - Atribuir exige Agente/Supervisor/Admin; auto dispensa agenteId. POST /api/usuarios só Admin; duplicado 409.
 - Primeiro JWT válido → JIT. JWT ruim → 401 RS256 iss/aud/validade.
@@ -81,14 +81,14 @@ PostgreSQL, Migrations EF (InitialCreate, AddPortalExternalId, AlinharAoSqlOfici
 
 | Tabela | Finalidade | Campos | Rel |
 |---|---|---|---|
-| grupo_empresa | cliente | id, nome | auto pai (legado) |
-| usuario | clientes+equipe | id, nome, email único, grupo_empresa_id, papel, portal_external_id | N:1 grupo |
-| sla_categoria | SLA | id, produto, categoria, prioridade, tempos min | único trio |
+| grupo_empresa | cliente (matriz/filial) | id, nome, tipo, grupo_pai_id, codigo_externo único, criado_em | auto-relacionamento (matriz → filiais) |
+| usuario | clientes+equipe | id, nome, email único, grupo_empresa_id, papel, codigo_externo único, criado_em, atualizado_em | N:1 grupo |
+| sla_config | SLA | id, produto, categoria, prioridade, tempo_resposta_min, tempo_resolucao_min, ativo | único (produto, categoria, prioridade) |
 | chamado | suporte | id, codigo_publico único, usuario/grupo/agente/sla ids, produto, categoria, prioridade, status, titulo, descricao, prazos, aguardando_desde, datas | N:1 usuario, grupo, sla |
 | interacao | mensagens | id, chamado, autor, tipo, mensagem, criado | N:1 chamado, usuario |
-| anexo | arquivos | id, interacao, nome, url/caminho, bytes, mime | N:1 interacao, chamado |
+| anexo | arquivos | id, chamado, interacao (opcional), nome_arquivo, caminho, tamanho_bytes, tipo_mime | N:1 chamado, N:1 interacao (opcional) |
 | log_auditoria | rastro | id, chamado, usuario, acao, campo, anterior, novo, criado | N:1 ambos |
-| provisionamento_audit | JIT | id, usuario, grupo, claims/external, criado | N:1 ambos |
+| provisionamento_audit | JIT | id, codigo_externo_usuario, codigo_externo_grupo, acao, data | sem FK |
 
 Sem entidades IA.
 
@@ -107,7 +107,7 @@ Sem entidades IA.
 | PATCH | .../{codigo}/status | novoStatus | 200/400/403/404 | cliente só reabre |
 | PATCH | .../{codigo}/atribuir | agenteId?,automatico? | 200/400/403/404 | Admin/Sup/Agente |
 
-**Fluxo:** front JWT em memória → Controller→UseCase→repo→UoW. Primeiro acesso JIT via claims. Abertura valida, busca sla_categoria (400), gera SA- (5 tentativas, 409), calcula SLA. PostgreSQL+UoW, log_auditoria. Front traduz ProblemDetails pt-BR, polling 30s, `/` buscar `R` atualizar. Completo: login JIT → POST cria+SLA+1ª pública 201 → GET fila → GET timeline → responde/altera/atribui. Pendente: webhook, job SLA, inatividade, upload.
+**Fluxo:** front JWT em memória → Controller→UseCase→repo→UoW. Primeiro acesso JIT via claims. Abertura valida, busca sla_config (400), gera SA- (5 tentativas, 409), calcula SLA. PostgreSQL+UoW, log_auditoria. Front traduz ProblemDetails pt-BR, polling 30s, `/` buscar `R` atualizar. Completo: login JIT → POST cria+SLA+1ª pública 201 → GET fila → GET timeline → responde/altera/atribui. Webhook implementado (eventos de criação, atualização, aguardando cliente e fechamento). No backlog (Fase 2): job de SLA/alertas, encerramento por inatividade, upload.
 
 **Erros (ProblemDetails):** 400 Validation/Domain, 403 Forbidden, 404 NotFound (fora grupo), 409 Conflict (e-mail/código), 401 sem/inválido → /login, 500 genérica sem stack. Front timeout 15s AbortController.
 
@@ -131,6 +131,6 @@ Clean: Domain→Application→Infrastructure→Api, controller nunca acessa banc
 
 Sem prompts (sem IA). Quando houver: versionar objetivo/contexto/saída/problemas, registrar versão, agente decide.
 
-**Feito:** F1 MVP mockado (seed, login simulado, fila, notas, relatórios); F2 back full (Clean, 3 migrations, JWT+Key, JIT, ProblemDetails, 2 testes); F3 front integrado (JWT memória, polling, timeline, templates, confirmação, SLA, LGPD, temas). **Pendente:** webhook RF06, jobs RF07/09, relatórios RF08, upload RF11, multicanal, log todos fluxos RF13.
+**Feito:** F1 MVP mockado (seed, login simulado, fila, notas, relatórios); F2 back full (Clean, 3 migrations, JWT+Key, JIT, ProblemDetails, testes xUnit de aplicação, integração e QA); F3 front integrado (JWT memória, polling, timeline, templates, confirmação, SLA, LGPD, temas). **Também feito:** webhook RF06 (4 eventos, X-Api-Key, retry) e testes de integração SLA/RF06. **Backlog (Fase 2):** jobs RF07/RF09, relatórios/export RF08, upload RF11, multicanal, auditoria em todos os fluxos RF13.
 
 Kanban essenciais→desejáveis, WIP, alinhamentos, segredos fora (Secrets/gitignore), READMEs. Impacto IA processo não descrito — complementar.

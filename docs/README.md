@@ -14,7 +14,7 @@
 - [02 — Requisitos do Sistema](./02-requisitos.md)
   - RF01–RF13, atores, UC01–UC11b/UC13, RNFs, protótipo, navegação, métricas e cronograma
 - [03 — Análise, Design e Dados](./03-arquitetura-dados.md)
-  - Arquitetura desacoplada, domínio, interação/sequência, classes, atividades, estados, componentes, modelo lógico + Scripts SQL 1–6, dicionário, ambiente, integrações externas
+  - Arquitetura desacoplada, domínio, interação/sequência, classes, atividades, estados, componentes, modelo de dados (8 tabelas) com diagrama ER e dicionário, ambiente, integrações externas
 - [04 — Implementação, Testes, Implantação e Manual](./04-implementacao-testes.md)
   - Boas práticas, plano de testes, implantação, manual usuário, conclusões, bibliografia
 - [05 — Entrega Parcial Takeoff — Software & IA](./05-entrega-parcial-takeoff.md)
@@ -34,7 +34,29 @@ Transições inválidas (ex.: `FECHADO → ABERTO`) são bloqueadas. Ver RN04 e 
 
 ## Diagramas
 
-Os diagramas UML (casos de uso Fig.1, classes Fig.2, sequência, atividades, estados, componentes, implantação, modelo lógico) estão no PDF original. Nesta versão `.md` mantemos o espaço reservado + leitura textual. Na versão final anexar em `docs/img/` e referenciar como `![Figura 1](./img/figura1-casos-de-uso.png)`.
+Os diagramas ficam em `docs/img/` e são referenciados nos documentos da pasta.
+
+### Figura 1 — Casos de uso
+
+![Figura 1 – Casos de Uso](./img/figura1-casos-de-uso.png)
+
+### Figura 2 — Diagrama de classes
+
+![Figura 2 – Diagrama de Classes](./img/figura2-classes.png)
+
+### Figura 3 — Diagrama de estados do chamado
+
+![Figura 3 – Diagrama de Estados](./img/figura3-diagrama-estados.png)
+
+### Figura 4 — Diagrama de atividades
+
+![Figura 4 – Diagrama de Atividades](./img/figura4-diagrama-atividades.png)
+
+### Regras de negócio
+
+![Regras de Negócio](./img/regras-de-negocio.png)
+
+O diagrama entidade-relacionamento do banco está em [03 — Análise, Design e Dados](./03-arquitetura-dados.md#472-diagrama-entidade-relacionamento).
 
 ## Como contribuir
 
